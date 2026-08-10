@@ -35,3 +35,6 @@ packaged.yaml
 .idea/
 .vscode/
 *.swp
+
+# --- Claude Code superpowers scratch (specs/plans, not project deliverables) ---
+docs/superpowers/
