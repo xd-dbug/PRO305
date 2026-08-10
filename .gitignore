@@ -38,3 +38,5 @@ packaged.yaml
 
 # --- Claude Code superpowers scratch (specs/plans, not project deliverables) ---
 docs/superpowers/
+.worktrees/
+.superpowers/
