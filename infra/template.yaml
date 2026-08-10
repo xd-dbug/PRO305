@@ -68,6 +68,7 @@ Resources:
   RecipeDB:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Properties:
       Engine: mysql
       EngineVersion: '8.0.46'
