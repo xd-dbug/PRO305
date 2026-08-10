@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: RecipeSharingApp — Week 1 skeleton (API Gateway, Lambdas, RDS, S3, CloudWatch alarm stubs)
+
+Parameters:
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for the RDS MySQL instance
+  JWTSecret:
+    Type: String
+    NoEcho: true
+    Description: Secret used to sign JWTs
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        DB_HOST: !GetAtt RecipeDB.Endpoint.Address
+        DB_PORT: !GetAtt RecipeDB.Endpoint.Port
+        DB_NAME: recipesharing
+        DB_USER: admin
+        DB_PASSWORD: !Ref DBPassword
+        JWT_SECRET: !Ref JWTSecret
+
+Resources:
+  RecipeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: recipe-sharing-shared
+      ContentUri: ../backend/shared/
+      CompatibleRuntimes:
+        - python3.13
+    Metadata:
+      BuildMethod: python3.13
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: health/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /health
+            Method: get
+
+  RdsTestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: rds_test/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+
+  RecipeDB:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      Engine: mysql
+      EngineVersion: '8.0.46'
+      DBInstanceClass: db.t4g.micro
+      AllocatedStorage: '20'
+      DBName: recipesharing
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 1
+
+  RecipePhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "recipe-sharing-photos-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "http://localhost:5173"
+            AllowedMethods: [GET, PUT, POST]
+            AllowedHeaders: ["*"]
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: recipe-sharing-alarms
+
+  Api5xxRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: recipe-sharing-api-5xx-rate
+      AlarmDescription: "TBD — threshold set in Week 3"
+      Namespace: AWS/ApiGateway
+      MetricName: 5XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref RecipeApi
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  ApiP95LatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: recipe-sharing-api-p95-latency
+      AlarmDescription: "TBD — threshold set in Week 3"
+      Namespace: AWS/ApiGateway
+      MetricName: Latency
+      ExtendedStatistic: p95
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref RecipeApi
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1000
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  MealplanDlqFailureRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: recipe-sharing-mealplan-dlq-failure-rate
+      AlarmDescription: "TBD — threshold set in Week 3. References a DLQ that does not exist yet; the mealplan track has not been built."
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: recipe-sharing-mealplan-dlq
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  MealplanGenerationTimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: recipe-sharing-mealplan-generation-time
+      AlarmDescription: "TBD — threshold set in Week 3. References a custom metric emitted by the mealplan consumer Lambda, not built yet."
+      Namespace: RecipeSharing/Mealplan
+      MetricName: GenerationDurationMs
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5000
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${RecipeApi}.execute-api.${AWS::Region}.amazonaws.com/dev/"
+  PhotosBucketName:
+    Value: !Ref RecipePhotosBucket
