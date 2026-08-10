@@ -1,0 +1,37 @@
+# --- Secrets / env ---
+.env
+.env.*
+!.env.example
+*.pem
+*credentials*
+
+# --- Python (backend Lambdas) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+build/
+.next/
+npm-debug.log*
+
+# --- AWS / IaC ---
+.aws-sam/
+samconfig.toml
+*.tfstate
+*.tfstate.*
+.terraform/
+cdk.out/
+packaged.yaml
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
