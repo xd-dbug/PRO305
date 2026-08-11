@@ -80,6 +80,57 @@ Resources:
             Path: /auth/login
             Method: post
 
+  RecipesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/recipes/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Events:
+        ListRecipes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /recipes
+            Method: get
+        CreateRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /recipes
+            Method: post
+        GetRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}"
+            Method: get
+        UpdateRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}"
+            Method: put
+        DeleteRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}"
+            Method: delete
+        RateRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}/rate"
+            Method: post
+        SaveRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}/save"
+            Method: post
+
   RecipeDB:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
