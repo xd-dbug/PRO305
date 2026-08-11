@@ -19,15 +19,37 @@ implements.
 - **Backend:** Python 3.13 Lambdas, one per domain (`recipes`, `auth`) using
   `aws-lambda-powertools`'s `APIGatewayRestResolver` for in-Lambda routing, plus two
   small standalone Lambdas (`infra/health`, `infra/rds_test`) that don't use Powertools.
-- **Shared code:** `backend/shared/` (`db.py`, `responses.py`) is packaged as a SAM
-  Lambda Layer (`SharedLayer` in `template.yaml`), not duplicated per function.
+- **Shared code:** `backend/layer/shared/` (`db.py`, `responses.py`) is packaged as a SAM
+  Lambda Layer (`SharedLayer` in `template.yaml`, `ContentUri: ../backend/layer/`), not
+  duplicated per function. The `shared/` subfolder is required so SAM's python-pip layer
+  build workflow — which copies the *contents* of `ContentUri` into `/opt/python/` — lands
+  the package at `/opt/python/shared/`, matching every Lambda's `from shared.x import y`
+  imports.
 - **Frontend:** Vite + React + JavaScript (no TypeScript, no router library yet — the
   scaffold is a single `App.jsx` that calls the real API client).
 - **Testing:** pytest for pure/DB-independent logic only (`shared/responses.py`,
   `auth/auth_service.py`, `recipes/app.py`'s stub routes). Anything DB-dependent
   (`auth/app.py`'s login route, `shared/db.py`, `infra/rds_test`) is smoke-tested
-  manually via `sam local invoke` / `sam local start-api` after a real deploy, not by
-  an automated suite — there's no live database to test against yet.
+  manually against the *deployed* stack via `curl`/`aws lambda invoke` after a real
+  `sam deploy`, not by an automated suite — there's no live database to test against
+  yet. `sam local invoke` / `sam local start-api` do **not** work for this: the RDS
+  instance is `PubliclyAccessible: false` and VPC-bound, so a local container can't
+  reach it, and `VpcConfig` only affects a deployed Lambda's networking anyway. See
+  `infra/README.md`'s "Manual smoke test after deploying" section for the exact
+  commands.
+
+### Running the tests
+
+    pip install -r backend/requirements-dev.txt \
+                -r backend/layer/requirements.txt \
+                -r backend/auth/requirements.txt \
+                -r backend/recipes/requirements.txt
+    pytest backend -v
+
+`backend/requirements-dev.txt` alone only provides `pytest` — the auth and recipes test
+suites import `jwt`/`bcrypt` and `aws_lambda_powertools` respectively, which are pinned
+in each function's own `requirements.txt` (not duplicated into the dev-only file, to
+avoid two sources of truth for the same pins).
 
 ## Status per track (as of scaffolding)
 

@@ -32,10 +32,20 @@ You'll be prompted for:
 
 ## Known gaps in this skeleton
 
-- `RdsTestFunction` has no `VpcConfig`. RDS instances default to a VPC; a Lambda outside
-  that VPC cannot reach it. Add `VpcConfig` (subnet + security group IDs) once you know
-  which VPC/subnets the RDS instance landed in — these are only knowable after `RecipeDB`
-  is actually created, so they can't be hardcoded here.
+- `RdsTestFunction` AND `AuthFunction` both have no `VpcConfig`. RDS instances default to
+  a VPC; a Lambda outside that VPC cannot reach it, and `AuthFunction`'s `/auth/login`
+  route queries RDS via `shared.db.get_connection()` just like `RdsTestFunction` does — so
+  it has the exact same gap. Add `VpcConfig` (subnet + security group IDs) to both
+  functions once you know which VPC/subnets the RDS instance landed in — these are only
+  knowable after `RecipeDB` is actually created, so they can't be hardcoded here.
+- `AlarmTopic` (the SNS topic) has no subscription. Even once the alarms above are firing
+  correctly, nobody gets notified — subscribe an email/endpoint to `AlarmTopic` before
+  relying on the alarms for anything.
+- The CloudWatch alarms' `ApiName` dimension previously referenced `!Ref RecipeApi` (the
+  REST API ID), which never matches the `AWS/ApiGateway` namespace's `ApiName` dimension
+  (matched against the API's display name). This has been corrected — `RecipeApi` now has
+  an explicit `Name: recipe-sharing-api`, and both alarms' dimension value is the literal
+  string `recipe-sharing-api`.
 - The `MealplanDlqFailureRateAlarm` and `MealplanGenerationTimeAlarm` alarms reference a
   DLQ and a custom metric that don't exist yet — they'll stay in `INSUFFICIENT_DATA` until
   the mealplan track is built. This is expected.
@@ -48,5 +58,12 @@ You'll be prompted for:
       --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)health"
     # -> {"status": "ok"}
 
-    sam local invoke RdsTestFunction --event <(echo '{}')
-    # -> {"statusCode": 200, "body": "{\"rds_connection\": \"ok\"}"} once VpcConfig is set
+    aws lambda invoke --function-name <RdsTestFunction's deployed name> /dev/stdout
+    # -> {"statusCode": 200, "body": "{\"rds_connection\": \"ok\"}"} once VpcConfig is set on both RDS-dependent Lambdas
+
+`sam local invoke` is not a substitute for the above: it runs a container on your own
+machine, and `VpcConfig` only affects a *deployed* Lambda's networking — it does nothing
+for a local container. The RDS instance is also `PubliclyAccessible: false`, so a local
+machine can't reach it either way. On top of that, `sam local invoke` against an
+undeployed stack can't resolve `!GetAtt RecipeDB.Endpoint.Address`, so `DB_HOST` would be
+empty. Use `aws lambda invoke` against the real deployed function instead, as above.
