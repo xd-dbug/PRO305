@@ -1,0 +1,1 @@
+# no additional dependencies yet — Claude API client and shared layer come in a later issue
