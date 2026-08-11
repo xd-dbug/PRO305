@@ -1,12 +1,12 @@
 import os
 
-from aws_lambda_powertools.event_handler import APIGatewayRestResolver
+from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig
 from aws_lambda_powertools.event_handler.exceptions import BadRequestError, UnauthorizedError
 
 from auth_service import issue_token, verify_password
 from shared.db import get_connection
 
-app = APIGatewayRestResolver()
+app = APIGatewayRestResolver(cors=CORSConfig(allow_origin="http://localhost:5173"))
 
 
 @app.post("/auth/login")

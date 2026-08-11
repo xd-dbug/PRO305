@@ -1,8 +1,8 @@
 import json
 
-from aws_lambda_powertools.event_handler import APIGatewayRestResolver, Response
+from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig, Response
 
-app = APIGatewayRestResolver()
+app = APIGatewayRestResolver(cors=CORSConfig(allow_origin="http://localhost:5173"))
 
 _MOCK_RECIPE = {
     "id": 1,
