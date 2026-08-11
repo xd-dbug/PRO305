@@ -31,12 +31,17 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: dev
+      Name: recipe-sharing-api
+      Cors:
+        AllowOrigin: "'http://localhost:5173'"
+        AllowHeaders: "'Content-Type'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
 
   SharedLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
       LayerName: recipe-sharing-shared
-      ContentUri: ../backend/shared/
+      ContentUri: ../backend/layer/
       CompatibleRuntimes:
         - python3.13
     Metadata:
@@ -176,7 +181,7 @@ Resources:
       MetricName: 5XXError
       Dimensions:
         - Name: ApiName
-          Value: !Ref RecipeApi
+          Value: recipe-sharing-api
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
@@ -195,7 +200,7 @@ Resources:
       ExtendedStatistic: p95
       Dimensions:
         - Name: ApiName
-          Value: !Ref RecipeApi
+          Value: recipe-sharing-api
       Period: 300
       EvaluationPeriods: 1
       Threshold: 1000

@@ -2,7 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).parent.parent / "responses.py"
+MODULE_PATH = Path(__file__).parent.parent / "shared" / "responses.py"
 
 
 def _load():
