@@ -40,3 +40,4 @@ packaged.yaml
 docs/superpowers/
 .worktrees/
 .superpowers/
+.claude/

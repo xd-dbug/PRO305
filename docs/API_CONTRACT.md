@@ -1,97 +1,127 @@
-# API Contract — Week 1 Skeleton
+# API Contract
 
-Base URL: SAM Output `ApiUrl` (e.g. `https://<api-id>.execute-api.<region>.amazonaws.com/dev/`).
-Locally: `sam local start-api` serves the same routes at `http://127.0.0.1:3000/`.
+Frontend builds against this with mocked responses until backend endpoints are live. **Any change to this doc needs sign-off from the relevant backend owner (Auth: Person B, Recipes: Person A, Meal Plan: you) before frontend re-mocks around it — this is the one doc that, if it drifts silently, breaks integration week.**
 
-**Status:** all routes below are implemented as skeletons. `recipes/*` return mock data —
-no database is queried yet. `auth/login` performs a real DB lookup + JWT issuance, but no
-route enforces the resulting token yet.
+Base URL: `https://<api-gateway-id>.execute-api.<region>.amazonaws.com/prod`
 
-## GET /health
-Smoke-test route, no auth.
+All authenticated routes require `Authorization: Bearer <jwt>`.
 
-Response `200`:
+---
+
+## Auth (Person B)
+
+### POST /auth/register
 ```json
-{ "status": "ok" }
+// Request
+{ "email": "string", "password": "string", "displayName": "string" }
+// Response 201
+{ "userId": "string", "email": "string", "displayName": "string" }
 ```
 
-## POST /auth/login
-Request:
+### POST /auth/login
 ```json
-{ "email": "alice@example.com", "password": "alice-test-password" }
+// Request
+{ "email": "string", "password": "string" }
+// Response 200
+{ "token": "jwt string", "userId": "string", "role": "User | Moderator" }
+```
+Errors: `401` invalid credentials
+
+### GET /users/me/preferences
+```json
+// Response 200
+{ "dietaryTags": ["vegetarian", "gluten-free"] }
 ```
 
-Response `200`:
+### PUT /users/me/preferences
 ```json
-{ "token": "<jwt>" }
+// Request
+{ "dietaryTags": ["vegetarian", "gluten-free"] }
+// Response 200 — same shape as GET
 ```
 
-Response `400` — missing email/password:
-```json
-{ "statusCode": 400, "message": "email and password are required" }
-```
+---
 
-Response `401` — bad credentials:
-```json
-{ "statusCode": 401, "message": "invalid email or password" }
-```
+## Recipes (Person A)
 
-JWT payload shape: `{ "sub": "<user id>", "email": "...", "role": "user"|"moderator", "iat": ..., "exp": ... }`
-
-## GET /recipes
-Response `200` (mock data, always returns one placeholder recipe until DB logic lands):
+### GET /recipes
+Query params: `?page=1&limit=20&tag=vegetarian`
 ```json
+// Response 200
 {
   "recipes": [
-    {
-      "id": 1,
-      "title": "Placeholder Recipe",
-      "description": "Stub data — no DB wired up yet",
-      "ingredients": ["stub ingredient"],
-      "steps": ["stub step"],
-      "author_id": 1,
-      "rating_avg": 0
-    }
-  ]
+    { "recipeId": "string", "title": "string", "photoUrl": "string|null", "avgRating": 4.2, "authorId": "string" }
+  ],
+  "page": 1,
+  "totalPages": 5
 }
 ```
 
-## GET /recipes/{recipe_id}
-Response `200`: same shape as above, `id` set to the requested `{recipe_id}`.
-
-## POST /recipes
-Request: any subset of the recipe fields above (e.g. `{ "title": "Tacos" }`).
-Response `201`: the submitted fields merged over the mock shape, `id` fixed at `999`
-until DB logic lands.
-
-## PUT /recipes/{recipe_id}
-Request: same as POST. Response `200`: submitted fields merged over the mock shape,
-`id` set to `{recipe_id}`.
-
-## DELETE /recipes/{recipe_id}
-Response `200`:
+### GET /recipes/{recipeId}
 ```json
-{ "deleted": true, "id": 7 }
+// Response 200
+{
+  "recipeId": "string", "title": "string", "authorId": "string",
+  "ingredients": [{ "name": "string", "amount": "string" }],
+  "steps": ["string"],
+  "photoUrl": "string|null",
+  "avgRating": 4.2,
+  "tags": ["vegetarian"]
+}
 ```
 
-## POST /recipes/{recipe_id}/rate
-Request:
+### POST /recipes  *(auth required)*
 ```json
-{ "rating": 5 }
-```
-Response `200`:
-```json
-{ "recipe_id": 7, "rating": 5, "rating_avg": 0 }
+// Request — same body as GET /recipes/{id} minus recipeId/avgRating
+// Response 201 — full recipe object
 ```
 
-## POST /recipes/{recipe_id}/save
-Response `200`:
+### PUT /recipes/{recipeId}  *(auth required, author or Moderator only)*
+Same body as POST. Response 200.
+
+### DELETE /recipes/{recipeId}  *(auth required, author or Moderator only)*
+Response 204. Errors: `403` if not author/Moderator.
+
+### POST /recipes/{recipeId}/ratings  *(auth required)*
 ```json
-{ "recipe_id": 7, "saved": true }
+// Request
+{ "score": 5 }
+// Response 201
+{ "recipeId": "string", "avgRating": 4.3 }
 ```
 
-## Error shape (all routes)
-Powertools' event resolver returns errors as:
+### POST /recipes/{recipeId}/photo  *(auth required, author only)*
+Multipart upload → S3. Response 200: `{ "photoUrl": "string" }`
+
+---
+
+## Meal Plan (you)
+
+### POST /mealplan/generate  *(auth required)*
+Enqueues to SQS, returns immediately.
 ```json
-{ "statusCode": <int>, "message": "<string>" }
+// Request
+{ "preferences": { "days": 7, "mealsPerDay": 3 } }
+// Response 202
+{ "jobId": "string", "status": "pending" }
 ```
+
+### GET /mealplan/status/{jobId}  *(auth required)*
+Frontend polls this.
+```json
+// Response 200
+{ "jobId": "string", "status": "pending | complete | failed", "mealPlan": null }
+// when complete:
+{ "jobId": "string", "status": "complete", "mealPlan": {
+    "days": [ { "day": 1, "meals": [ { "recipeId": "string|null", "name": "string", "notes": "string" } ] } ]
+} }
+```
+Polling interval: frontend should poll every 3–5s, stop after `failed` or `complete`, cap at ~2 min before showing a timeout state.
+
+---
+
+## Error shape (all endpoints)
+```json
+{ "error": "string", "message": "string" }
+```
+Standard codes: `400` validation, `401` unauthenticated, `403` forbidden, `404` not found, `500` server error.

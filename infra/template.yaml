@@ -136,6 +136,24 @@ Resources:
             Path: "/recipes/{recipe_id}/save"
             Method: post
 
+  MealplanQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: recipe-sharing-mealplan-queue
+      VisibilityTimeout: 60
+
+  MealplanFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/mealplan/
+      Handler: app.lambda_handler
+      Events:
+        MealplanQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt MealplanQueue.Arn
+            BatchSize: 1
+
   RecipeDB:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
@@ -248,3 +266,5 @@ Outputs:
     Value: !Sub "https://${RecipeApi}.execute-api.${AWS::Region}.amazonaws.com/dev/"
   PhotosBucketName:
     Value: !Ref RecipePhotosBucket
+  MealplanQueueUrl:
+    Value: !Ref MealplanQueue
