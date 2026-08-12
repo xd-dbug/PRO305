@@ -45,6 +45,38 @@ Create these now so everyone has a starting point day one — assign per your ex
 - Scaffold React app
 - Agree on API contract doc in `/docs` with backend owners before building against mocks
 
-## 5. Why seed issues instead of just "figure it out"
+## 5. Week 2 issues
+
+Week 2 is the highest integration-risk week — recipe CRUD, auth enforcement, the meal-plan pipeline, and frontend-against-mocks all run in parallel. Dependencies are marked explicitly; don't let them slip.
+
+**You (mealplan/AI):**
+- SQS consumer: parse message, build prompt from user's dietary tags + saved recipes, call Claude API
+- Persist generated meal plan to RDS, mark job status (pending/complete/failed)
+- DLQ wiring — route to DLQ after 2–3 failed attempts
+- *Blocked by:* RDS schema for meal plans (Person C), dietary preference tags (Person B)
+
+**Person A (recipes):**
+- Recipe CRUD — full DB logic (create/read/update/delete)
+- Ratings endpoint (create/read, tied to recipe + user)
+- S3 photo upload — actual upload flow
+- *Blocks:* nothing structurally, but finalize recipe schema early — mealplan queries against it
+
+**Person B (auth):**
+- Auth enforcement — middleware checking JWT + role on protected routes
+- Moderator permissions enforced, not just documented
+- Dietary preference tags — CRUD on user profile
+- *Blocks:* mealplan prompt-building (needs dietary tag data)
+
+**Person C (infra):**
+- Finalize meal-plan RDS schema — priority Monday, not Friday
+- Two of four CloudWatch alerts live with real thresholds: API 5xx rate, p95 latency
+- *Blocks:* mealplan persistence work
+
+**Person D (frontend):**
+- Recipe list/detail/create UI against mocked data
+- Meal-plan request UI + polling for async status (mock pending/complete states)
+- **Do not start until the API contract doc (`/docs/API_CONTRACT.md`) is signed off by backend owners**
+
+## 6. Why seed issues instead of just "figure it out"
 
 An empty board on day one of a 4-week sprint means the first real work session is spent deciding what to work on instead of working. Seeding Week 1 issues removes that friction — everyone opens the board and has something concrete to claim.
