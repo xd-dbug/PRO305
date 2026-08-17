@@ -27,18 +27,27 @@ All authenticated routes require `Authorization: Bearer <jwt>`.
 ```
 Errors: `401` invalid credentials
 
-### GET /users/me/preferences
+### GET /users/me/preferences  *(auth required)*
 ```json
 // Response 200
 { "dietaryTags": ["vegetarian", "gluten-free"] }
 ```
+Returns `{ "dietaryTags": [] }` if the user has never set any tags.
+Errors: `401` unauthenticated
 
-### PUT /users/me/preferences
+### PUT /users/me/preferences  *(auth required)*
 ```json
 // Request
 { "dietaryTags": ["vegetarian", "gluten-free"] }
 // Response 200 — same shape as GET
 ```
+Full replace, not a merge — send the complete desired tag set. Send
+`{ "dietaryTags": [] }` to clear all tags. Tags are normalized server-side
+(trimmed, lowercased, deduplicated) so the mealplan prompt-building consumer
+(issue #1) can match on exact string equality; the response echoes the
+normalized values, which may differ in case from what was submitted.
+Errors: `400` if `dietaryTags` is missing, not an array of strings, or
+contains blank strings · `401` unauthenticated
 
 ---
 

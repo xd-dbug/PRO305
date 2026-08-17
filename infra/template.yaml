@@ -88,6 +88,18 @@ Resources:
             RestApiId: !Ref RecipeApi
             Path: /auth/login
             Method: post
+        GetPreferences:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /users/me/preferences
+            Method: get
+        UpdatePreferences:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /users/me/preferences
+            Method: put
 
   RecipesFunction:
     Type: AWS::Serverless::Function
