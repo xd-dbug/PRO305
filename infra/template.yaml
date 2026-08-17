@@ -286,7 +286,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: recipe-sharing-api-5xx-rate
-      AlarmDescription: "TBD — threshold set in Week 3"
+      AlarmDescription: "Alarms on any 5xx response in a 5-minute window — low-traffic course project, so even a single error is signal."
       Namespace: AWS/ApiGateway
       MetricName: 5XXError
       Dimensions:
@@ -304,7 +304,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: recipe-sharing-api-p95-latency
-      AlarmDescription: "TBD — threshold set in Week 3"
+      AlarmDescription: "Alarms when p95 latency exceeds 1000ms over 5 minutes."
       Namespace: AWS/ApiGateway
       MetricName: Latency
       ExtendedStatistic: p95
