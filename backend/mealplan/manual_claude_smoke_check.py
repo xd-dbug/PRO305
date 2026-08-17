@@ -2,12 +2,16 @@
 Manual smoke test for the Anthropic account/API key set up in Week 1 issue #3.
 
 Not part of the Lambda or the automated test suite — run by hand to confirm
-ANTHROPIC_API_KEY is valid and billing is wired up correctly.
+ANTHROPIC_API_KEY is valid and billing is wired up correctly. Deliberately
+named to avoid both of pytest's default collection globs (`test_*.py` and
+`*_test.py`) — matching either previously put backend/mealplan on sys.path
+for the whole test session, which shadowed backend/recipes/token_auth.py
+once mealplan grew its own same-named module.
 
 Usage:
     pip install anthropic
     export ANTHROPIC_API_KEY=sk-ant-...
-    python backend/mealplan/test_claude_call.py
+    python backend/mealplan/manual_claude_smoke_check.py
 """
 import os
 import sys
