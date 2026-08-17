@@ -11,6 +11,19 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Secret used to sign JWTs
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Description: Anthropic API key for Claude calls
+  DefaultVpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-08c7ca324ca084924
+    Description: >-
+      VPC for RecipeDB's security group. No Lambda in this stack has VpcConfig
+      (the mealplan consumer needs public internet for the Claude API, and
+      this VPC has no NAT gateway), so RecipeDB is PubliclyAccessible instead
+      of Lambda-only-reachable — this SG is what that decision hinges on.
+      Defaults to this AWS account's default VPC in us-east-2.
 
 Globals:
   Function:
@@ -25,6 +38,7 @@ Globals:
         DB_USER: admin
         DB_PASSWORD: !Ref DBPassword
         JWT_SECRET: !Ref JWTSecret
+        ANTHROPIC_API_KEY: !Ref AnthropicApiKey
 
 Resources:
   RecipeApi:
@@ -160,17 +174,54 @@ Resources:
       QueueName: recipe-sharing-mealplan-queue
       VisibilityTimeout: 60
 
+  MealplanGenerateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/mealplan/
+      Handler: generate.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Environment:
+        Variables:
+          MEALPLAN_QUEUE_URL: !Ref MealplanQueue
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt MealplanQueue.QueueName
+      Events:
+        GenerateMealplan:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /mealplan/generate
+            Method: post
+
   MealplanFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/mealplan/
       Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
       Events:
         MealplanQueueEvent:
           Type: SQS
           Properties:
             Queue: !GetAtt MealplanQueue.Arn
             BatchSize: 1
+
+  RecipeDbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: >-
+        Inbound MySQL for RecipeDB. Public on purpose, protection is the DB
+        password alone, not network isolation. Scoped to this stack, not
+        the accounts shared default SG.
+      VpcId: !Ref DefaultVpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
 
   RecipeDB:
     Type: AWS::RDS::DBInstance
@@ -184,7 +235,9 @@ Resources:
       DBName: recipesharing
       MasterUsername: admin
       MasterUserPassword: !Ref DBPassword
-      PubliclyAccessible: false
+      PubliclyAccessible: true
+      VPCSecurityGroups:
+        - !GetAtt RecipeDbSecurityGroup.GroupId
       BackupRetentionPeriod: 1
 
   RecipePhotosBucket:
