@@ -30,6 +30,8 @@ from token_auth import get_current_user, require_owner_or_moderator
 import s3_utils
 from multipart_utils import parse_multipart
 
+from shared.auth_middleware import require_auth, require_owner_or_moderator
+
 app = APIGatewayRestResolver(cors=CORSConfig(allow_origin="http://localhost:5173"))
 
 DEFAULT_PAGE_LIMIT = 20
@@ -374,6 +376,7 @@ def upload_photo(recipe_id: str):
 # ---------------------------------------------------------------------------
 @app.post("/recipes/<recipe_id>/save")
 def save_recipe(recipe_id: str):
+    require_auth(app)
     return {"recipe_id": int(recipe_id), "saved": True}
 
 
