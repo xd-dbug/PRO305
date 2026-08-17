@@ -32,6 +32,10 @@ Resources:
     Properties:
       StageName: dev
       Name: recipe-sharing-api
+      # multipart/form-data added so API Gateway passes the recipe-photo
+      # upload body through as binary instead of mangling it as text.
+      BinaryMediaTypes:
+        - multipart/form-data
       Cors:
         AllowOrigin: "'http://localhost:5173'"
         AllowHeaders: "'Content-Type'"
@@ -92,6 +96,14 @@ Resources:
       Handler: app.lambda_handler
       Layers:
         - !Ref SharedLayer
+      # Needed for the S3 photo upload/read flow in this function only —
+      # doesn't touch the shared layer or other functions.
+      Environment:
+        Variables:
+          PHOTOS_BUCKET: !Ref RecipePhotosBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref RecipePhotosBucket
       Events:
         ListRecipes:
           Type: Api
@@ -127,13 +139,19 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref RecipeApi
-            Path: "/recipes/{recipe_id}/rate"
+            Path: "/recipes/{recipe_id}/ratings"
             Method: post
         SaveRecipe:
           Type: Api
           Properties:
             RestApiId: !Ref RecipeApi
             Path: "/recipes/{recipe_id}/save"
+            Method: post
+        UploadRecipePhoto:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}/photo"
             Method: post
 
   MealplanQueue:
