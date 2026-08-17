@@ -10,9 +10,12 @@ Uses shared.db.get_connection from the layer (backend/layer/shared/db.py).
 That connection is NOT autocommit, so every write path here commits
 explicitly and rolls back on failure.
 
-Auth (token_auth.py), S3 (s3_utils.py), and multipart parsing
-(multipart_utils.py) are local to this component for now — see
-token_auth.py's docstring for why.
+S3 (s3_utils.py) and multipart parsing (multipart_utils.py) are local to
+this component for now. Auth is the shared layer's
+shared.auth_middleware (require_auth / require_owner_or_moderator) — see
+that module's docstring. A local duplicate used to live in
+token_auth.py; it's been retired in favor of the shared, tested
+implementation (issue #8).
 """
 import base64
 import json
@@ -26,7 +29,6 @@ from aws_lambda_powertools.event_handler.exceptions import (
 
 from shared.db import get_connection
 
-from token_auth import get_current_user, require_owner_or_moderator
 import s3_utils
 from multipart_utils import parse_multipart
 
@@ -207,7 +209,7 @@ def get_recipe(recipe_id: str):
 
 @app.post("/recipes")
 def create_recipe():
-    user = get_current_user(app.current_event)
+    user = require_auth(app)
     body = _validate_recipe_body(app.current_event.json_body)
 
     conn = get_connection()
@@ -215,7 +217,7 @@ def create_recipe():
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO recipes (title, author_id) VALUES (%s, %s)",
-                (body["title"], user["user_id"]),
+                (body["title"], user["sub"]),
             )
             new_id = cur.lastrowid
             _replace_ingredients_steps_tags(cur, new_id, body["ingredients"], body["steps"], body["tags"])
@@ -231,7 +233,7 @@ def create_recipe():
 
 @app.put("/recipes/<recipe_id>")
 def update_recipe(recipe_id: str):
-    user = get_current_user(app.current_event)
+    user = require_auth(app)
     body = _validate_recipe_body(app.current_event.json_body)
 
     conn = get_connection()
@@ -254,7 +256,7 @@ def update_recipe(recipe_id: str):
 
 @app.delete("/recipes/<recipe_id>")
 def delete_recipe(recipe_id: str):
-    user = get_current_user(app.current_event)
+    user = require_auth(app)
 
     conn = get_connection()
     try:
@@ -278,7 +280,7 @@ def delete_recipe(recipe_id: str):
 
 @app.post("/recipes/<recipe_id>/ratings")
 def rate_recipe(recipe_id: str):
-    user = get_current_user(app.current_event)
+    user = require_auth(app)
     body = app.current_event.json_body or {}
     score = body.get("score")
     if not isinstance(score, int) or not (1 <= score <= 5):
@@ -297,7 +299,7 @@ def rate_recipe(recipe_id: str):
                 VALUES (%s, %s, %s)
                 ON DUPLICATE KEY UPDATE score = VALUES(score)
                 """,
-                (recipe_id, user["user_id"], score),
+                (recipe_id, user["sub"], score),
             )
 
             cur.execute(
@@ -332,12 +334,12 @@ def rate_recipe(recipe_id: str):
 def upload_photo(recipe_id: str):
     """Matches API_CONTRACT.md: multipart POST -> { "photoUrl": "string" }.
     Expects a single "file" field. Author only (not Moderator)."""
-    user = get_current_user(app.current_event)
+    user = require_auth(app)
 
     conn = get_connection()
     with conn.cursor() as cur:
         existing = _fetch_recipe_row_or_404(cur, recipe_id)
-        if user["user_id"] != str(existing["author_id"]):
+        if str(user["sub"]) != str(existing["author_id"]):
             raise ForbiddenError("Only the recipe author can upload its photo")
 
     event = app.current_event

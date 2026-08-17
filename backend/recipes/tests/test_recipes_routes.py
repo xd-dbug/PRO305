@@ -1,11 +1,53 @@
+"""Route tests for backend/recipes/app.py.
+
+Focused on auth/ownership wiring (issue #8): app.py used to import a local
+`get_current_user`/`require_owner_or_moderator` from token_auth.py *and* the
+shared, tested shared.auth_middleware versions in the same statement block,
+with the second import silently winning. That meant update_recipe/delete_recipe
+called require_owner_or_moderator with a user dict shaped {"user_id", "role"}
+(token_auth.py's shape) against an implementation that reads user["sub"]
+(shared.auth_middleware's shape) — so `sub` was always missing and real
+recipe owners got incorrectly 403'd on their own recipes.
+
+app.py's routes are all DB-backed (real MySQL/RDS, VPC-bound, not reachable
+from sam local per the repo's testing convention) so these tests monkeypatch
+get_connection with the tiny in-memory fake in fake_db.py rather than hitting
+a real database — see fake_db.py's docstring for the scope/limits of that
+fake. This is not a substitute for the manual post-deploy smoke test of the
+actual DB-dependent behavior; it exists to make the auth-enforcement logic
+itself unit-testable and to regression-test the shadowed-import bug above.
+"""
 import importlib.util
 import json
+import os
+import sys
 from pathlib import Path
 
 import jwt
 import pytest
 
-MODULE_PATH = Path(__file__).parent.parent / "app.py"
+RECIPES_DIR = Path(__file__).parent.parent
+MODULE_PATH = RECIPES_DIR / "app.py"
+
+# app.py does local (non-package) imports of s3_utils/multipart_utils — those
+# only resolve at deploy time because Lambda puts the function root on
+# sys.path. Mirror that here for the spec_from_file_location load below.
+if str(RECIPES_DIR) not in sys.path:
+    sys.path.insert(0, str(RECIPES_DIR))
+
+# s3_utils.py builds a real boto3 S3 client at *import* time (module-level),
+# not lazily per-call. None of these tests exercise the photo-upload S3 calls
+# themselves, but importing app.py (which imports s3_utils) still triggers
+# boto3's credential resolution, which can hard-fail in an environment with
+# no AWS credentials/config at all. Dummy static credentials are enough to
+# satisfy client construction without making any real AWS calls or reading
+# a real profile/SSO config — this keeps the test run independent of
+# whatever credentials happen to be in the invoking shell.
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "testing")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+
+from fake_db import FakeConnection, FakeDB  # noqa: E402  (tests/ dir is on sys.path via pytest's own rootdir insertion)
 
 JWT_SECRET = "test-secret"
 
@@ -58,8 +100,17 @@ def auth_headers(role="user", sub="1", secret=JWT_SECRET):
 
 recipes_app = _load_app_module()
 
-# The mock recipe's author_id (see app.py) — used to build "owner" vs "non-owner" tokens.
+# The seeded recipe's author — used to build "owner" vs "non-owner" tokens.
 OWNER_SUB = "1"
+OTHER_SUB = "999"
+RECIPE_ID = 7
+
+VALID_BODY = {
+    "title": "Updated Tacos",
+    "ingredients": [{"name": "tortilla", "amount": "2"}],
+    "steps": ["Warm the tortilla", "Add filling"],
+    "tags": [],
+}
 
 
 @pytest.fixture(autouse=True)
@@ -67,151 +118,163 @@ def jwt_secret(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
 
 
-def test_list_recipes_returns_mock_list():
-    result = recipes_app.lambda_handler(make_event("GET", "/recipes"), FakeContext())
-    assert result["statusCode"] == 200
-    body = json.loads(result["body"])
-    assert isinstance(body["recipes"], list)
-    assert len(body["recipes"]) >= 1
+@pytest.fixture
+def fake_db(monkeypatch):
+    db = FakeDB()
+    db.seed_recipe(RECIPE_ID, author_id=OWNER_SUB)
+    monkeypatch.setattr(recipes_app, "get_connection", lambda: FakeConnection(db))
+    return db
 
 
-def test_get_recipe_returns_requested_id():
-    result = recipes_app.lambda_handler(make_event("GET", "/recipes/42"), FakeContext())
-    assert result["statusCode"] == 200
-    body = json.loads(result["body"])
-    assert body["id"] == 42
+# ---------------------------------------------------------------------------
+# update_recipe (PUT /recipes/{id}) — auth required, author or Moderator only
+# ---------------------------------------------------------------------------
 
-
-def test_create_recipe_returns_201_with_submitted_fields():
+def test_update_recipe_rejects_missing_token(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("POST", "/recipes", body={"title": "Tacos"}, headers=auth_headers()),
-        FakeContext(),
-    )
-    assert result["statusCode"] == 201
-    body = json.loads(result["body"])
-    assert body["title"] == "Tacos"
-
-
-def test_create_recipe_rejects_missing_token():
-    result = recipes_app.lambda_handler(
-        make_event("POST", "/recipes", body={"title": "Tacos"}), FakeContext()
-    )
-    assert result["statusCode"] == 401
-
-
-def test_create_recipe_rejects_invalid_token():
-    result = recipes_app.lambda_handler(
-        make_event(
-            "POST",
-            "/recipes",
-            body={"title": "Tacos"},
-            headers={"Authorization": "Bearer not-a-real-token"},
-        ),
+        make_event("PUT", f"/recipes/{RECIPE_ID}", path_params={"recipe_id": str(RECIPE_ID)}, body=VALID_BODY),
         FakeContext(),
     )
     assert result["statusCode"] == 401
 
 
-def test_update_recipe_returns_requested_id_for_owner():
+def test_update_recipe_rejects_non_owner_non_moderator(fake_db):
     result = recipes_app.lambda_handler(
         make_event(
             "PUT",
-            "/recipes/7",
-            body={"title": "Updated"},
+            f"/recipes/{RECIPE_ID}",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            body=VALID_BODY,
+            headers=auth_headers(role="user", sub=OTHER_SUB),
+        ),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 403
+
+
+def test_update_recipe_allows_owner(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event(
+            "PUT",
+            f"/recipes/{RECIPE_ID}",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            body=VALID_BODY,
             headers=auth_headers(role="user", sub=OWNER_SUB),
         ),
         FakeContext(),
     )
     assert result["statusCode"] == 200
     body = json.loads(result["body"])
-    assert body["id"] == 7
-    assert body["title"] == "Updated"
+    assert body["title"] == VALID_BODY["title"]
 
 
-def test_update_recipe_allows_moderator_regardless_of_ownership():
+def test_update_recipe_allows_moderator_regardless_of_ownership(fake_db):
     result = recipes_app.lambda_handler(
         make_event(
             "PUT",
-            "/recipes/7",
-            body={"title": "Updated"},
-            headers=auth_headers(role="moderator", sub="999"),
+            f"/recipes/{RECIPE_ID}",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            body=VALID_BODY,
+            headers=auth_headers(role="moderator", sub=OTHER_SUB),
         ),
         FakeContext(),
     )
     assert result["statusCode"] == 200
 
 
-def test_update_recipe_rejects_missing_token():
+# ---------------------------------------------------------------------------
+# delete_recipe (DELETE /recipes/{id}) — auth required, author or Moderator only
+# ---------------------------------------------------------------------------
+
+def test_delete_recipe_rejects_missing_token(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("PUT", "/recipes/7", body={"title": "Updated"}), FakeContext()
+        make_event("DELETE", f"/recipes/{RECIPE_ID}", path_params={"recipe_id": str(RECIPE_ID)}),
+        FakeContext(),
     )
     assert result["statusCode"] == 401
 
 
-def test_update_recipe_rejects_non_owner_non_moderator():
+def test_delete_recipe_rejects_non_owner_non_moderator(fake_db):
     result = recipes_app.lambda_handler(
         make_event(
-            "PUT",
-            "/recipes/7",
-            body={"title": "Updated"},
-            headers=auth_headers(role="user", sub="999"),
+            "DELETE",
+            f"/recipes/{RECIPE_ID}",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers=auth_headers(role="user", sub=OTHER_SUB),
         ),
         FakeContext(),
     )
     assert result["statusCode"] == 403
+    assert RECIPE_ID in fake_db.recipes  # rejected before the delete happened
 
 
-def test_delete_recipe_confirms_deletion_for_owner():
+def test_delete_recipe_allows_owner(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("DELETE", "/recipes/7", headers=auth_headers(role="user", sub=OWNER_SUB)),
+        make_event(
+            "DELETE",
+            f"/recipes/{RECIPE_ID}",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers=auth_headers(role="user", sub=OWNER_SUB),
+        ),
         FakeContext(),
     )
-    assert result["statusCode"] == 200
-    body = json.loads(result["body"])
-    assert body["deleted"] is True
-    assert body["id"] == 7
+    assert result["statusCode"] == 204
+    assert RECIPE_ID not in fake_db.recipes
 
 
-def test_delete_recipe_rejects_non_owner_non_moderator():
+def test_delete_recipe_allows_moderator_regardless_of_ownership(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("DELETE", "/recipes/7", headers=auth_headers(role="user", sub="999")),
+        make_event(
+            "DELETE",
+            f"/recipes/{RECIPE_ID}",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers=auth_headers(role="moderator", sub=OTHER_SUB),
+        ),
         FakeContext(),
     )
-    assert result["statusCode"] == 403
+    assert result["statusCode"] == 204
+    assert RECIPE_ID not in fake_db.recipes
 
 
-def test_delete_recipe_rejects_missing_token():
-    result = recipes_app.lambda_handler(make_event("DELETE", "/recipes/7"), FakeContext())
+# ---------------------------------------------------------------------------
+# create_recipe / rate_recipe — auth required, no ownership check, but must
+# use the token's `sub` (not token_auth.py's `user_id`) as the actor id.
+# ---------------------------------------------------------------------------
+
+def test_create_recipe_rejects_missing_token(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event("POST", "/recipes", body=VALID_BODY), FakeContext()
+    )
     assert result["statusCode"] == 401
 
 
-def test_rate_recipe_echoes_rating():
+def test_create_recipe_uses_token_sub_as_author(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("POST", "/recipes/7/rate", body={"rating": 5}, headers=auth_headers()),
+        make_event("POST", "/recipes", body=VALID_BODY, headers=auth_headers(role="user", sub="42")),
         FakeContext(),
     )
-    assert result["statusCode"] == 200
+    assert result["statusCode"] == 201
     body = json.loads(result["body"])
-    assert body["recipe_id"] == 7
-    assert body["rating"] == 5
+    assert body["authorId"] == "42"
 
 
-def test_rate_recipe_rejects_missing_token():
+def test_rate_recipe_rejects_missing_token(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("POST", "/recipes/7/rate", body={"rating": 5}), FakeContext()
+        make_event("POST", f"/recipes/{RECIPE_ID}/ratings", body={"score": 5}),
+        FakeContext(),
     )
     assert result["statusCode"] == 401
 
 
-def test_save_recipe_confirms_saved():
+def test_rate_recipe_records_score_against_token_sub(fake_db):
     result = recipes_app.lambda_handler(
-        make_event("POST", "/recipes/7/save", headers=auth_headers()), FakeContext()
+        make_event(
+            "POST",
+            f"/recipes/{RECIPE_ID}/ratings",
+            body={"score": 5},
+            headers=auth_headers(role="user", sub=OWNER_SUB),
+        ),
+        FakeContext(),
     )
-    assert result["statusCode"] == 200
-    body = json.loads(result["body"])
-    assert body["saved"] is True
-
-
-def test_save_recipe_rejects_missing_token():
-    result = recipes_app.lambda_handler(make_event("POST", "/recipes/7/save"), FakeContext())
-    assert result["statusCode"] == 401
+    assert result["statusCode"] == 201
+    assert fake_db.ratings[(RECIPE_ID, OWNER_SUB)] == 5
