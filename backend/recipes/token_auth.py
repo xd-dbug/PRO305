@@ -20,7 +20,7 @@ from aws_lambda_powertools.event_handler.exceptions import UnauthorizedError, Fo
 def get_current_user(event) -> dict:
     """Extract and verify the bearer token from an APIGatewayRestResolver event.
 
-    Returns {"user_id": str, "role": "User" | "Moderator"}.
+    Returns {"user_id": str, "role": "user" | "moderator"}.
     """
     auth_header = event.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -34,13 +34,13 @@ def get_current_user(event) -> dict:
 
     user_id = payload.get("userId") or payload.get("sub")
     role = payload.get("role")
-    if not user_id or role not in ("User", "Moderator"):
+    if not user_id or role not in ("user", "moderator"):
         raise UnauthorizedError("Token missing required claims")
 
     return {"user_id": str(user_id), "role": role}
 
 
 def require_owner_or_moderator(user: dict, resource_author_id) -> None:
-    """403s unless the caller authored the resource or is a Moderator."""
-    if user["role"] != "Moderator" and str(user["user_id"]) != str(resource_author_id):
+    """403s unless the caller authored the resource or is a moderator."""
+    if user["role"] != "moderator" and str(user["user_id"]) != str(resource_author_id):
         raise ForbiddenError("Not the recipe author or a Moderator")
