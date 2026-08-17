@@ -2,6 +2,8 @@ import json
 
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig, Response
 
+from shared.auth_middleware import require_auth, require_owner_or_moderator
+
 app = APIGatewayRestResolver(cors=CORSConfig(allow_origin="http://localhost:5173"))
 
 _MOCK_RECIPE = {
@@ -27,6 +29,7 @@ def get_recipe(recipe_id: str):
 
 @app.post("/recipes")
 def create_recipe():
+    require_auth(app)
     body = app.current_event.json_body or {}
     return Response(
         status_code=201,
@@ -37,23 +40,29 @@ def create_recipe():
 
 @app.put("/recipes/<recipe_id>")
 def update_recipe(recipe_id: str):
+    user = require_auth(app)
+    require_owner_or_moderator(user, _MOCK_RECIPE["author_id"])
     body = app.current_event.json_body or {}
     return {**_MOCK_RECIPE, **body, "id": int(recipe_id)}
 
 
 @app.delete("/recipes/<recipe_id>")
 def delete_recipe(recipe_id: str):
+    user = require_auth(app)
+    require_owner_or_moderator(user, _MOCK_RECIPE["author_id"])
     return {"deleted": True, "id": int(recipe_id)}
 
 
 @app.post("/recipes/<recipe_id>/rate")
 def rate_recipe(recipe_id: str):
+    require_auth(app)
     body = app.current_event.json_body or {}
     return {"recipe_id": int(recipe_id), "rating": body.get("rating"), "rating_avg": 0}
 
 
 @app.post("/recipes/<recipe_id>/save")
 def save_recipe(recipe_id: str):
+    require_auth(app)
     return {"recipe_id": int(recipe_id), "saved": True}
 
 
