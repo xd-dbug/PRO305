@@ -11,6 +11,8 @@ MODULE_PATH = MEALPLAN_DIR / "app.py"
 
 
 def _load():
+    if str(MEALPLAN_DIR) not in sys.path:
+        sys.path.insert(0, str(MEALPLAN_DIR))
     spec = importlib.util.spec_from_file_location("mealplan_app", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     sys.modules["mealplan_app"] = module
@@ -67,12 +69,18 @@ def test_missing_records_key_treated_as_empty():
 
 @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
 @patch("mealplan_app.anthropic")
+@patch("mealplan_app.get_saved_recipes")
+@patch("mealplan_app.get_dietary_tags")
 @patch("mealplan_app.get_connection")
-def test_success_marks_complete_with_generated_plan(mock_get_conn, mock_anthropic):
+def test_success_marks_complete_with_generated_plan(
+    mock_get_conn, mock_get_dietary_tags, mock_get_saved_recipes, mock_anthropic
+):
     conn, cursor = _mock_conn(
-        {"request_preferences": json.dumps({"days": 2, "mealsPerDay": 2})}
+        {"user_id": 7, "request_preferences": json.dumps({"days": 2, "mealsPerDay": 2})}
     )
     mock_get_conn.return_value = conn
+    mock_get_dietary_tags.return_value = ["vegetarian"]
+    mock_get_saved_recipes.return_value = [{"title": "Oat Bowl", "rating_avg": "4.50"}]
 
     plan = {"days": [{"day": 1, "meals": [{"recipeId": None, "name": "Oats", "notes": ""}]}]}
     client = MagicMock()
@@ -83,6 +91,13 @@ def test_success_marks_complete_with_generated_plan(mock_get_conn, mock_anthropi
     result = mealplan_app.lambda_handler(event, FakeContext())
 
     assert result == {"processed": 1}
+
+    mock_get_dietary_tags.assert_called_once_with(conn, 7)
+    mock_get_saved_recipes.assert_called_once_with(conn, 7)
+
+    prompt = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "vegetarian" in prompt
+    assert "Oat Bowl" in prompt
 
     complete_calls = _update_calls(cursor, "status = 'complete'")
     assert len(complete_calls) == 1
@@ -118,12 +133,18 @@ def test_missing_job_row_marks_failed_and_reraises(mock_get_conn, mock_anthropic
 
 @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
 @patch("mealplan_app.anthropic")
+@patch("mealplan_app.get_saved_recipes")
+@patch("mealplan_app.get_dietary_tags")
 @patch("mealplan_app.get_connection")
-def test_claude_failure_marks_failed_and_reraises(mock_get_conn, mock_anthropic):
+def test_claude_failure_marks_failed_and_reraises(
+    mock_get_conn, mock_get_dietary_tags, mock_get_saved_recipes, mock_anthropic
+):
     conn, cursor = _mock_conn(
-        {"request_preferences": json.dumps({"days": 1, "mealsPerDay": 1})}
+        {"user_id": 7, "request_preferences": json.dumps({"days": 1, "mealsPerDay": 1})}
     )
     mock_get_conn.return_value = conn
+    mock_get_dietary_tags.return_value = []
+    mock_get_saved_recipes.return_value = []
 
     client = MagicMock()
     client.messages.create.side_effect = RuntimeError("claude is down")
@@ -145,12 +166,18 @@ def test_claude_failure_marks_failed_and_reraises(mock_get_conn, mock_anthropic)
 
 @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
 @patch("mealplan_app.anthropic")
+@patch("mealplan_app.get_saved_recipes")
+@patch("mealplan_app.get_dietary_tags")
 @patch("mealplan_app.get_connection")
-def test_malformed_claude_json_marks_failed_and_reraises(mock_get_conn, mock_anthropic):
+def test_malformed_claude_json_marks_failed_and_reraises(
+    mock_get_conn, mock_get_dietary_tags, mock_get_saved_recipes, mock_anthropic
+):
     conn, cursor = _mock_conn(
-        {"request_preferences": json.dumps({"days": 1, "mealsPerDay": 1})}
+        {"user_id": 7, "request_preferences": json.dumps({"days": 1, "mealsPerDay": 1})}
     )
     mock_get_conn.return_value = conn
+    mock_get_dietary_tags.return_value = []
+    mock_get_saved_recipes.return_value = []
 
     client = MagicMock()
     client.messages.create.return_value = MagicMock(
