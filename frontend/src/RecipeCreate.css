@@ -1,5 +1,5 @@
 .recipe-create-page {
-  max-width: 640px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 32px 20px 64px;
   text-align: left;
@@ -9,11 +9,13 @@
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-   /* url("/RecipeBG.jpeg"); 
-  background-size: cover;
+   url("/OtherBG.jpeg"); 
+  background-size: auto;
   background-position: center;
+  height: 100vh;
+  width: 100vw;
   background-repeat: no-repeat;
-  */
+ 
 }
 
 .recipe-create-page form {
