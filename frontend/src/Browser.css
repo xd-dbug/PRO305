@@ -1,11 +1,11 @@
-.browser-container {
+.browser-page {
   flex-grow: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 20px;
-  text-align: center;
-  color: var(--text-h);
+  padding: 32px 20px 48px;
+  text-align: left;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
   background-image:
     linear-gradient(
       color-mix(in srgb, var(--bg) 88%, transparent),
@@ -15,4 +15,122 @@
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+.browser-header h1 {
+  margin: 0 0 4px;
+}
+.browser-intro {
+  color: var(--text);
+}
+
+.tag-filter {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 8px;
+}
+.tag-filter input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  background: var(--bg);
+  color: var(--text-h);
+}
+.tag-filter button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
+.tag-filter button:hover {
+  border-color: var(--accent-border);
+}
+.tag-filter .clear-filter {
+  background: transparent;
+}
+
+.state-message {
+  margin: 32px 0;
+  color: var(--text);
+}
+.state-message.error {
+  color: #c0392b;
+}
+
+.browser-grid {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.browser-card a {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.browser-card a:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--accent-border);
+}
+
+.browser-photo {
+  aspect-ratio: 4 / 3;
+  background: var(--code-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.browser-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.browser-photo-placeholder {
+  font-size: 40px;
+}
+
+.browser-card h2 {
+  font-size: 17px;
+  margin: 12px 14px 4px;
+}
+.browser-card .browser-rating {
+  display: block;
+  margin: 0 14px 14px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 36px;
+}
+.pagination button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

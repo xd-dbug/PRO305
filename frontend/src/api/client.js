@@ -3,6 +3,7 @@ import { generateMealPlanMock, getMealPlanStatusMock } from "./mealPlanMock";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:3000/";
 
 const TOKEN_KEY = "authToken";
+const USER_ID_KEY = "authUserId";
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -13,6 +14,18 @@ export function setToken(token) {
     localStorage.setItem(TOKEN_KEY, token);
   } else {
     localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
+export function getUserId() {
+  return localStorage.getItem(USER_ID_KEY);
+}
+
+export function setUserId(userId) {
+  if (userId) {
+    localStorage.setItem(USER_ID_KEY, userId);
+  } else {
+    localStorage.removeItem(USER_ID_KEY);
   }
 }
 
@@ -76,8 +89,14 @@ export function saveRecipe(recipeId) {
   return request(`recipes/${recipeId}/save`, { method: "POST" });
 }
 
-export function login(email, password) {
-  return request("auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+export async function login(email, password) {
+  const res = await request("auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  setToken(res.token);
+  setUserId(res.userId);
+  return res;
 }
 
 // TODO(backend): the real pipeline (POST /mealplan/generate + SQS worker +
