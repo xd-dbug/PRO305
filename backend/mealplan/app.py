@@ -2,17 +2,32 @@ import json
 import os
 
 import anthropic
+from queries import get_dietary_tags, get_saved_recipes
 
 from shared.db import get_connection
 
 CLAUDE_MODEL = "claude-sonnet-5"
 
 
-def build_prompt(preferences: dict) -> str:
+def build_prompt(preferences: dict, dietary_tags: list[str], saved_recipes: list[dict]) -> str:
     days = preferences["days"]
     meals_per_day = preferences["mealsPerDay"]
+    dietary_line = (
+        f"Dietary constraints (must follow strictly): {', '.join(dietary_tags)}.\n"
+        if dietary_tags
+        else ""
+    )
+    saved_titles = [r["title"] for r in saved_recipes]
+    inspiration_line = (
+        f"For style inspiration only (not hard requirements), the user has previously "
+        f"saved: {', '.join(saved_titles)}.\n"
+        if saved_titles
+        else ""
+    )
     return (
         f"Generate a {days}-day meal plan with {meals_per_day} meals per day.\n"
+        f"{dietary_line}"
+        f"{inspiration_line}"
         "Respond with ONLY valid JSON (no markdown fences, no commentary) in exactly "
         "this shape:\n"
         '{"days": [{"day": 1, "meals": [{"recipeId": null, "name": "string", '
@@ -22,15 +37,15 @@ def build_prompt(preferences: dict) -> str:
     )
 
 
-def _fetch_preferences(cursor, job_id: str) -> dict:
+def _fetch_job(cursor, job_id: str) -> tuple[int, dict]:
     cursor.execute(
-        "SELECT request_preferences FROM mealplan_job WHERE id = %s",
+        "SELECT user_id, request_preferences FROM mealplan_job WHERE id = %s",
         (job_id,),
     )
     row = cursor.fetchone()
     if row is None:
         raise ValueError(f"no mealplan_job found for id {job_id}")
-    return json.loads(row["request_preferences"])
+    return row["user_id"], json.loads(row["request_preferences"])
 
 
 def _call_claude(prompt: str) -> dict:
@@ -55,9 +70,12 @@ def _process_record(record):
     try:
         try:
             with conn.cursor() as cursor:
-                preferences = _fetch_preferences(cursor, job_id)
+                user_id, preferences = _fetch_job(cursor, job_id)
 
-            plan = _call_claude(build_prompt(preferences))
+            dietary_tags = get_dietary_tags(conn, user_id)
+            saved_recipes = get_saved_recipes(conn, user_id)
+
+            plan = _call_claude(build_prompt(preferences, dietary_tags, saved_recipes))
 
             with conn.cursor() as cursor:
                 cursor.execute(

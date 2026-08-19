@@ -180,11 +180,20 @@ Resources:
             Path: "/recipes/{recipe_id}/photo"
             Method: post
 
+  MealplanDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: recipe-sharing-mealplan-dlq
+      MessageRetentionPeriod: 1209600
+
   MealplanQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: recipe-sharing-mealplan-queue
       VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MealplanDLQ.Arn
+        maxReceiveCount: 3
 
   MealplanGenerateFunction:
     Type: AWS::Serverless::Function
@@ -277,7 +286,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: recipe-sharing-api-5xx-rate
-      AlarmDescription: "TBD — threshold set in Week 3"
+      AlarmDescription: "Alarms on any 5xx response in a 5-minute window — low-traffic course project, so even a single error is signal."
       Namespace: AWS/ApiGateway
       MetricName: 5XXError
       Dimensions:
@@ -295,7 +304,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: recipe-sharing-api-p95-latency
-      AlarmDescription: "TBD — threshold set in Week 3"
+      AlarmDescription: "Alarms when p95 latency exceeds 1000ms over 5 minutes."
       Namespace: AWS/ApiGateway
       MetricName: Latency
       ExtendedStatistic: p95
@@ -313,12 +322,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: recipe-sharing-mealplan-dlq-failure-rate
-      AlarmDescription: "TBD — threshold set in Week 3. References a DLQ that does not exist yet; the mealplan track has not been built."
+      AlarmDescription: "Alarms when any message lands in the mealplan DLQ — at this volume, one DLQ message is worth a look."
       Namespace: AWS/SQS
       MetricName: ApproximateNumberOfMessagesVisible
       Dimensions:
         - Name: QueueName
-          Value: recipe-sharing-mealplan-dlq
+          Value: !GetAtt MealplanDLQ.QueueName
       Statistic: Maximum
       Period: 300
       EvaluationPeriods: 1
