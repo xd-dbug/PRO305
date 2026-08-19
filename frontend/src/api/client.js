@@ -1,3 +1,5 @@
+import { generateMealPlanMock, getMealPlanStatusMock } from "./mealPlanMock";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:3000/";
 
 const TOKEN_KEY = "authToken";
@@ -76,4 +78,20 @@ export function saveRecipe(recipeId) {
 
 export function login(email, password) {
   return request("auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+// TODO(backend): the real pipeline (POST /mealplan/generate + SQS worker +
+// GET /mealplan/status/{jobId}) doesn't exist yet. These two currently delegate
+// to a local mock (see ./mealPlanMock.js) so the polling UI can be built and
+// exercised end-to-end. Once the real endpoints are live, swap these bodies for:
+//   generateMealPlan  -> request("mealplan/generate", { method: "POST", body: JSON.stringify({ preferences }) })
+//   getMealPlanStatus -> request(`mealplan/status/${jobId}`)
+// The response shapes already match the contract, so nothing calling these two
+// functions needs to change.
+export function generateMealPlan(preferences, opts) {
+  return generateMealPlanMock(preferences, opts);
+}
+
+export function getMealPlanStatus(jobId) {
+  return getMealPlanStatusMock(jobId);
 }

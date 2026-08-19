@@ -1,0 +1,19 @@
+.Homepage {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 20px;
+  text-align: center;
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--bg) 85%, transparent),
+      color-mix(in srgb, var(--bg) 85%, transparent)
+    ),
+    url("/KitchenBG.jpeg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}

@@ -1,0 +1,52 @@
+.register-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text);
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--bg) 88%, transparent),
+      color-mix(in srgb, var(--bg) 88%, transparent)
+    ),
+    url("/loginRegisterBG.jpeg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.register-container h1 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.register-container textarea {
+  width: 100%;
+  max-width: 320px;
+  min-height: 44px;
+  resize: none;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.register-container button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  background-color: var(--accent);
+  color: #fff;
+  transition: opacity 0.2s;
+}
+.register-container button:hover {
+  opacity: 0.88;
+}
