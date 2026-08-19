@@ -7,7 +7,7 @@
   gap: 16px;
   padding: 48px 20px;
   text-align: center;
-  color: var(--text);
+  color: var(--text-h);
   background-image:
     linear-gradient(
       color-mix(in srgb, var(--bg) 88%, transparent),
@@ -24,11 +24,16 @@
   margin: 0;
 }
 
-.register-container textarea {
+.register-container form {
+  display: grid;
+  gap: 12px;
   width: 100%;
   max-width: 320px;
-  min-height: 44px;
-  resize: none;
+}
+
+.register-container input {
+  width: 100%;
+  box-sizing: border-box;
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -49,4 +54,22 @@
 }
 .register-container button:hover {
   opacity: 0.88;
+}
+.register-container button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.register-error {
+  color: #c0392b;
+  font-size: 14px;
+  margin: 0;
+  text-align: left;
+}
+.register-alt {
+  font-size: 14px;
+  color: var(--text);
+}
+.register-alt a {
+  color: var(--accent);
 }

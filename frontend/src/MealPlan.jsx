@@ -8,7 +8,6 @@ const TIMEOUT_MS = 2 * 60 * 1000; // cap at ~2 min per API_CONTRACT.md
 function MealPlan() {
   const [days, setDays] = useState(7);
   const [mealsPerDay, setMealsPerDay] = useState(3);
-  const [simulateFailure, setSimulateFailure] = useState(false);
 
   // idle | pending | complete | failed | timeout | error
   const [phase, setPhase] = useState("idle");
@@ -78,10 +77,10 @@ function MealPlan() {
     setPhase("pending");
 
     try {
-      const { jobId } = await generateMealPlan(
-        { days: Number(days), mealsPerDay: Number(mealsPerDay) },
-        { simulateFailure }
-      );
+      const { jobId } = await generateMealPlan({
+        days: Number(days),
+        mealsPerDay: Number(mealsPerDay),
+      });
       activeJobIdRef.current = jobId;
       startTimeRef.current = Date.now();
 
@@ -110,8 +109,7 @@ function MealPlan() {
     <div className="mealplan-page">
       <h1>Meal plan</h1>
       <p className="mealplan-intro">
-        Queues a meal-plan job and polls for the result — the same flow the real
-        SQS-backed pipeline will use once it's live.
+        Queues a meal-plan job and polls for the result.
       </p>
 
       <form className="mealplan-form" onSubmit={handleSubmit}>
@@ -136,15 +134,6 @@ function MealPlan() {
             onChange={(e) => setMealsPerDay(e.target.value)}
             disabled={isPending}
           />
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={simulateFailure}
-            onChange={(e) => setSimulateFailure(e.target.checked)}
-            disabled={isPending}
-          />
-          Simulate a failed job (dev)
         </label>
 
         <button type="submit" disabled={isPending}>

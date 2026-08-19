@@ -1,5 +1,3 @@
-import { generateMealPlanMock, getMealPlanStatusMock } from "./mealPlanMock";
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:3000/";
 
 const TOKEN_KEY = "authToken";
@@ -31,14 +29,27 @@ export function setUserId(userId) {
 
 async function request(path, options = {}) {
   const token = getToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    // fetch() throws a plain "Failed to fetch" TypeError when it can't even
+    // reach the server (wrong URL, server not running, CORS, offline, etc.) —
+    // that's not the same as the request reaching the API and failing.
+    throw new Error(
+      `Couldn't reach the API at ${API_BASE_URL}. Check that VITE_API_BASE_URL ` +
+        `in your .env points to a running server and that it's reachable.`
+    );
+  }
+
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const message = body?.message || body?.error || `Request failed with ${response.status}`;
@@ -89,6 +100,13 @@ export function saveRecipe(recipeId) {
   return request(`recipes/${recipeId}/save`, { method: "POST" });
 }
 
+export function register(email, password, displayName) {
+  return request("auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password, displayName }),
+  });
+}
+
 export async function login(email, password) {
   const res = await request("auth/login", {
     method: "POST",
@@ -99,18 +117,15 @@ export async function login(email, password) {
   return res;
 }
 
-// TODO(backend): the real pipeline (POST /mealplan/generate + SQS worker +
-// GET /mealplan/status/{jobId}) doesn't exist yet. These two currently delegate
-// to a local mock (see ./mealPlanMock.js) so the polling UI can be built and
-// exercised end-to-end. Once the real endpoints are live, swap these bodies for:
-//   generateMealPlan  -> request("mealplan/generate", { method: "POST", body: JSON.stringify({ preferences }) })
-//   getMealPlanStatus -> request(`mealplan/status/${jobId}`)
-// The response shapes already match the contract, so nothing calling these two
-// functions needs to change.
-export function generateMealPlan(preferences, opts) {
-  return generateMealPlanMock(preferences, opts);
+// Contract: POST /mealplan/generate  { "preferences": { days, mealsPerDay } } -> 202 { jobId, status: "pending" }
+export function generateMealPlan(preferences) {
+  return request("mealplan/generate", {
+    method: "POST",
+    body: JSON.stringify({ preferences }),
+  });
 }
 
+// Contract: GET /mealplan/status/{jobId} -> { jobId, status, mealPlan }
 export function getMealPlanStatus(jobId) {
-  return getMealPlanStatusMock(jobId);
+  return request(`mealplan/status/${jobId}`);
 }

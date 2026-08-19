@@ -24,11 +24,16 @@
   margin: 0;
 }
 
-.login-container textarea {
+.login-container form {
+  display: grid;
+  gap: 12px;
   width: 100%;
   max-width: 320px;
-  min-height: 44px;
-  resize: none;
+}
+
+.login-container input {
+  width: 100%;
+  box-sizing: border-box;
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -49,4 +54,27 @@
 }
 .login-container button:hover {
   opacity: 0.88;
+}
+.login-container button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-error {
+  color: #c0392b;
+  font-size: 14px;
+  margin: 0;
+  text-align: left;
+}
+.login-success {
+  color: var(--accent);
+  font-size: 14px;
+  margin: 0;
+}
+.login-alt {
+  font-size: 14px;
+  color: var(--text);
+}
+.login-alt a {
+  color: var(--accent);
 }
