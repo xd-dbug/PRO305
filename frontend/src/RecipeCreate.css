@@ -9,10 +9,11 @@
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-    url("/RecipeBG.jpeg");
+   /* url("/RecipeBG.jpeg"); 
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  */
 }
 
 .recipe-create-page form {

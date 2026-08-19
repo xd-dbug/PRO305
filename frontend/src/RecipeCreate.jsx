@@ -7,7 +7,7 @@ const emptyIngredient = () => ({ name: "", amount: "" });
 
 function RecipeCreate() {
   const navigate = useNavigate();
-  const isAuthed = Boolean(getToken());
+  // const isAuthed = Boolean(getToken());
 
   const [title, setTitle] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -60,15 +60,15 @@ function RecipeCreate() {
     }
   }
 
-  if (!isAuthed) {
-    return (
-      <div className="recipe-create-page">
-        <p className="state-message">
-          You need to be logged in to create a recipe. <Link to="/login">Log in</Link>
-        </p>
-      </div>
-    );
-  }
+  // if (!isAuthed) {
+  //   return (
+  //     <div className="recipe-create-page">
+  //       <p className="state-message">
+  //         You need to be logged in to create a recipe. <Link to="/login">Log in</Link>
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="recipe-create-page">
