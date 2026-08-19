@@ -29,20 +29,29 @@ function Recipe() {
   }, [recipeId]);
 
   if (status === "loading") {
-    return <p className="state-message">Loading recipe…</p>;
+    return (
+      <div className="recipe-page">
+        <div className="recipe-content">
+          <p className="state-message">Loading recipe…</p>
+        </div>
+      </div>
+    );
   }
 
   if (status === "error") {
     return (
       <div className="recipe-page">
-        <p className="state-message error">Couldn't load this recipe: {error}</p>
-        <Link to="/recipe">← All recipes</Link>
+        <div className="recipe-content">
+          <p className="state-message error">Couldn't load this recipe: {error}</p>
+          <Link to="/recipe">← All recipes</Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <article className="recipe-page">
+    <div className="recipe-page">
+      <article className="recipe-content">
       <Link to="/recipe" className="back-link">
         ← All recipes
       </Link>
@@ -92,7 +101,8 @@ function Recipe() {
           </ol>
         </section>
       </div>
-    </article>
+      </article>
+    </div>
   );
 }
 

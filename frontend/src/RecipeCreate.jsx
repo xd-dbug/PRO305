@@ -72,6 +72,7 @@ function RecipeCreate() {
 
   return (
     <div className="recipe-create-page">
+      <div className="recipe-create-content">
       <h1>New recipe</h1>
       <form onSubmit={handleSubmit}>
         <label>
@@ -141,6 +142,7 @@ function RecipeCreate() {
           {status === "saving" ? "Saving…" : "Save recipe"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

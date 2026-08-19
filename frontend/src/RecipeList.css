@@ -1,21 +1,24 @@
 .recipe-list-page {
-  padding: 32px 20px 48px;
-  text-align: left;
-  max-width: 960px;
-  margin: 0 auto;
+  flex-grow: 1;
   width: 100%;
   box-sizing: border-box;
-   background-image:
+  background-image:
     linear-gradient(
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-   url("/OtherBG.jpeg"); 
-  background-size: auto;
+    url("/RecipeBG.jpeg");
+  background-size: cover;
   background-position: center;
-  height: 100vh;
-  width: 100vw;
   background-repeat: no-repeat;
+}
+
+.recipe-list-content {
+  padding: 32px 20px 48px;
+  text-align: left;
+  max-width: 960px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .recipe-list-header {

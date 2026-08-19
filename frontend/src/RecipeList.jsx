@@ -52,6 +52,7 @@ function RecipeList() {
 
   return (
     <div className="recipe-list-page">
+      <div className="recipe-list-content">
       <header className="recipe-list-header">
         <h1>Recipes</h1>
         <Link to="/recipes/new" className="new-recipe-btn">
@@ -127,6 +128,7 @@ function RecipeList() {
           </nav>
         </>
       )}
+      </div>
     </div>
   );
 }

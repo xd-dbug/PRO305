@@ -1,43 +1,46 @@
 .recipe-create-page {
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 32px 20px 64px;
-  text-align: left;
+  flex-grow: 1;
+  width: 100%;
   box-sizing: border-box;
   background-image:
     linear-gradient(
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-   url("/OtherBG.jpeg"); 
-  background-size: auto;
+    url("/OtherBG.jpeg");
+  background-size: cover;
   background-position: center;
-  height: 100vh;
-  width: 100vw;
   background-repeat: no-repeat;
- 
 }
 
-.recipe-create-page form {
+.recipe-create-content {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.recipe-create-content form {
   display: grid;
   gap: 24px;
   margin-top: 24px;
 }
 
-.recipe-create-page label {
+.recipe-create-content label {
   display: grid;
   gap: 6px;
   font-weight: 500;
   color: var(--text-h);
 }
-.recipe-create-page .hint {
+.recipe-create-content .hint {
   font-weight: 400;
   color: var(--text);
   font-size: 13px;
 }
 
-.recipe-create-page input,
-.recipe-create-page textarea {
+.recipe-create-content input,
+.recipe-create-content textarea {
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -45,19 +48,19 @@
   background: var(--bg);
   color: var(--text-h);
 }
-.recipe-create-page textarea {
+.recipe-create-content textarea {
   min-height: 60px;
   resize: vertical;
 }
 
-.recipe-create-page fieldset {
+.recipe-create-content fieldset {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
   display: grid;
   gap: 10px;
 }
-.recipe-create-page legend {
+.recipe-create-content legend {
   padding: 0 6px;
   font-weight: 500;
   color: var(--text-h);
@@ -83,7 +86,7 @@
 
 .ingredient-row button,
 .step-row button,
-.recipe-create-page fieldset > button {
+.recipe-create-content fieldset > button {
   border: 1px solid var(--border);
   background: var(--code-bg);
   border-radius: 6px;
