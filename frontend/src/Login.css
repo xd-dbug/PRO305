@@ -7,18 +7,19 @@
 
 html, body {
   height: 100%;
+  background-color: grey;
 }
 
 .login-container {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  color: #1a1a1a;
+  color: #3b6ff7;
 }
 body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
-  color: #1a1a1a;
+  color: grey;
   background-color: #ffffff;
 }
 
