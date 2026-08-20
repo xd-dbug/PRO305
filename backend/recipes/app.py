@@ -180,11 +180,19 @@ def list_recipes():
         total = cur.fetchone()["total"]
         total_pages = max((total + limit - 1) // limit, 1)
 
+        # ORDER BY needs a tiebreaker: created_at is a plain TIMESTAMP (1s
+        # resolution, no fractional seconds), so any recipes inserted in the
+        # same second — trivially true for bulk-seeded/test data, and not
+        # impossible for real concurrent users — have no defined relative
+        # order without one. Without `r.id DESC` here, MySQL doesn't
+        # guarantee stable tie ordering between the COUNT query's plan and
+        # the SELECT's, which can surface as the same recipe appearing on
+        # two adjacent pages or disappearing between them (issue #39).
         cur.execute(
             f"""
             SELECT r.* FROM recipes r
             {where_sql}
-            ORDER BY r.created_at DESC
+            ORDER BY r.created_at DESC, r.id DESC
             LIMIT %s OFFSET %s
             """,
             (*params, limit, offset),

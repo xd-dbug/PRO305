@@ -1,0 +1,210 @@
+RECIPES COMPONENT — CHANGELOG (Week 2 + Week 3)
+==================================================
+Covers issues #4, #5, #6 (Week 2: recipe CRUD, ratings, photo upload) and
+#38, #39 (Week 3: frontend mock swap, pagination sanity check).
+
+Note: some Week 2 files listed here were later superseded during Week 3
+when issue #8 (auth enforcement) landed — see the "SUPERSEDED" note under
+token_auth.py below. Listing both so this reads as a complete history,
+not just current state.
+
+
+------------------------------------------------------------------
+WEEK 2 — #4 Recipe CRUD, #5 Ratings, #6 Photo upload
+------------------------------------------------------------------
+
+backend/recipes/app.py — REPLACED
+  Replaced the Week 1 mock-data stub with real logic against the schema in
+  backend/recipes/schema.sql (normalized: recipe_ingredient, recipe_step,
+  tags/recipe_tag, singular `rating` table, rating_avg stored on recipes).
+
+  - All 5 CRUD routes (GET list, GET one, POST, PUT, DELETE) read/write
+    real rows. PUT does a full delete-and-reinsert of a recipe's
+    ingredients/steps/tags rather than diffing — simpler and less
+    error-prone for this project's scope.
+  - POST /recipes/{id}/ratings persists to the `rating` table (UNIQUE on
+    recipe_id+user_id, so re-rating updates instead of duplicating) and
+    writes the recomputed average back to recipes.rating_avg.
+  - POST /recipes/{id}/photo matches the original API_CONTRACT.md exactly
+    (single multipart call) rather than a presign/confirm pair — the
+    payload-size concern that pattern solves isn't a real risk at this
+    project's scale, so the simpler single-endpoint version was kept to
+    avoid contract drift and an extra round trip for the frontend.
+  - shared.db's connection is not autocommit; every write path here
+    commits explicitly and rolls back on exception.
+
+backend/recipes/s3_utils.py — NEW
+  Uploads photo bytes directly to S3, generates presigned GET URLs for
+  reads (RecipePhotosBucket blocks all public access, so there's no
+  stable public URL to store — recipes.photo_url holds the S3 object
+  *key*, and the API always returns a freshly presigned URL, ~1hr expiry).
+
+backend/recipes/multipart_utils.py — NEW
+  Parses the multipart/form-data upload body using the stdlib `email`
+  package — no new dependency needed for it.
+
+backend/recipes/token_auth.py — NEW, then SUPERSEDED (see Week 3 below)
+  Original local JWT verification helper, written before the shared
+  layer had one. Retired during #8 in favor of shared.auth_middleware —
+  see the Week 3 section for why keeping both caused a real bug.
+
+backend/recipes/requirements.txt — CHANGED
+  Added pyjwt (for the now-retired token_auth.py — worth confirming this
+  dependency is still needed for anything else in recipes, or can be
+  dropped now that shared.auth_middleware covers it from the layer).
+
+infra/template.yaml — CHANGED
+  - Added PHOTOS_BUCKET env var + S3CrudPolicy to RecipesFunction (photo
+    upload/read needs the bucket name and IAM permission at runtime).
+  - Added BinaryMediaTypes: [multipart/form-data] to RecipeApi (without
+    this, API Gateway can corrupt the raw image bytes before the Lambda
+    sees them).
+  - Added the missing UploadRecipePhoto API event — the original template
+    never actually exposed POST /recipes/{id}/photo to API Gateway.
+  - Fixed RateRecipe's path from /recipes/{id}/rate to
+    /recipes/{id}/ratings to match API_CONTRACT.md (this was the
+    "known /rate vs /ratings drift" issue #38 later referenced).
+
+docs/RECIPES_WEEK2_NOTES.md — NEW
+  Full writeup of the above for the team/PR description.
+
+backend/recipes/tests/test_recipes_routes.py — REPLACED (first pass)
+  Original version tested Week 1's mock stub. Rewritten against real
+  app.py logic using a hand-rolled in-memory fake for shared.db.get_connection
+  (matches app.py's exact SQL strings — not a general SQL engine). 17 tests
+  covering CRUD, ratings (including re-rating averages correctly), photo
+  upload, and ownership checks. This version was itself later superseded —
+  see Week 3.
+
+
+------------------------------------------------------------------
+WEEK 3 — #8 (discovered during #38/#39 work) Auth enforcement bug
+------------------------------------------------------------------
+
+This wasn't one of the two Week 3 tickets directly, but a real bug in
+app.py's auth wiring was found and fixed by the team along the way, and
+it changes how everything below should be read:
+
+  app.py used to import get_current_user/require_owner_or_moderator from
+  BOTH the local token_auth.py (payload shape {user_id, role}) AND
+  shared.auth_middleware (payload shape {sub, role}) in the same
+  statement block — the second import silently won. This meant
+  require_owner_or_moderator was being called with the wrong dict shape,
+  so `sub` was always missing and real recipe owners were incorrectly
+  getting 403'd on their own recipes.
+
+  Fix: token_auth.py removed entirely; app.py now imports auth
+  exclusively from shared.auth_middleware (require_auth,
+  require_owner_or_moderator). Token payload is {sub, email, role}.
+
+backend/layer/shared/auth_middleware.py — NEW (not authored in this
+  session, included here for context since it's now load-bearing for
+  everything in app.py)
+  Shared JWT verification + role/ownership enforcement, now the single
+  source of truth for auth across every Lambda via the layer.
+
+backend/recipes/tests/fake_db.py — NEW (extracted from the old inline fake)
+  Narrower-scope in-memory fake than the original test file's inline
+  version — deliberately limited to what's needed to unit-test the
+  auth/ownership wiring (not a full CRUD/pagination fake).
+
+backend/recipes/tests/test_recipes_routes.py — REPLACED (second pass)
+  Rewritten again against fake_db.py, focused on regression-testing the
+  shadowed-import bug above: rejects missing/invalid tokens (401), rejects
+  non-owner non-moderator writes (403), allows owner and moderator writes,
+  and confirms create/rate use the token's `sub` as the actor id.
+
+
+------------------------------------------------------------------
+WEEK 3 — #38 Swap frontend recipe/rating data from mocks to real endpoints
+------------------------------------------------------------------
+
+Audit result: RecipeList.jsx, Recipe.jsx, Browser.jsx, Homepage.jsx, and
+RecipeCreate.jsx were already calling real client.js functions (fetch
+calls against the deployed API) — no mock fixture arrays left in any of
+them. The known /rate vs /ratings drift the ticket calls out was already
+fixed on the backend side (see template.yaml above); client.js's
+rateRecipe() was already pointed at the correct /ratings path.
+
+The actual gap: no UI anywhere let a user submit a rating. Recipe.jsx
+displayed avgRating but had nothing to write one.
+
+frontend/src/Recipe.jsx — CHANGED
+  Added a RatingWidget component: five clickable stars, calls
+  rateRecipe(recipeId, score) from client.js, updates the displayed
+  average on success, shows a "Log in to rate this recipe" prompt instead
+  of the stars if there's no auth token. Sits inside .recipe-title-meta
+  alongside the existing average-rating display and tag list.
+
+frontend/src/Recipe.css — CHANGED (appended)
+  Styles for the new widget, using the file's existing design tokens
+  (--accent, --border, --mono, --text) rather than hardcoded colors, and
+  matching the existing #c0392b error color used elsewhere in the file.
+
+Not touched / flagged, not fixed:
+  - frontend/src/api/mealPlanMock.js is still in the repo but unused —
+    MealPlan.jsx already imports the real client.js functions. Dead file,
+    worth a cleanup ticket to delete it.
+
+
+------------------------------------------------------------------
+WEEK 3 — #39 Sanity-check recipe pagination with real data volume
+------------------------------------------------------------------
+
+Reviewing list_recipes' real query (post-#8) surfaced a genuine bug,
+not just a missing test: `ORDER BY r.created_at DESC` had no tiebreaker.
+recipes.created_at is a plain TIMESTAMP (1-second resolution, no
+fractional seconds), so multiple recipes created in the same second —
+trivially true for bulk-seeded test data, and possible under real
+concurrent use — have no defined relative order. This is exactly the
+kind of bug that's invisible with ~3 hand-created recipes and only shows
+up "past page 1," which is what this ticket exists to check.
+
+backend/recipes/app.py — CHANGED
+  ORDER BY r.created_at DESC  ->  ORDER BY r.created_at DESC, r.id DESC
+  `id` is AUTO_INCREMENT, so it's a correct, monotonic proxy for creation
+  order even among same-second rows. One-line change, but touches a live
+  query — flagged for a second reviewer before merging.
+
+backend/recipes/seed.py — NEW
+  Direct-DB seed script (same pattern as backend/auth/seed.py — bypasses
+  the API entirely) that creates a batch of real recipes (default 60,
+  configurable via --count), all tagged "paginationtest-w3" for clean
+  isolation from real/other-teammate data. Requires auth/seed.py to have
+  been run first (looks up alice@example.com's real user id rather than
+  fabricating one). Supports --cleanup to delete everything it created
+  (cascades via existing FK constraints).
+
+backend/recipes/verify_pagination.py — NEW
+  Walks GET /recipes?tag=paginationtest-w3 across every page, at two
+  different limit values (20 and 7, against the same seeded dataset), and
+  checks: every non-last page has exactly `limit` items, the last page's
+  remainder is correct, no recipeId appears on more than one page (the
+  specific symptom the missing tiebreaker would cause), one page past the
+  last returns empty, and different limit values walk the identical set
+  of recipes overall. Requires the `requests` package — add to
+  backend/requirements-dev.txt if not already present. Run against a real
+  deployed API URL, not sam local (RDS is VPC-bound).
+
+Usage:
+  python seed.py
+  python verify_pagination.py --base-url <deployed API URL>
+  python seed.py --cleanup
+
+
+------------------------------------------------------------------
+FILE-BY-FILE SUMMARY (what to actually drop into the repo)
+------------------------------------------------------------------
+backend/recipes/app.py                          overwrite
+backend/recipes/s3_utils.py                     new
+backend/recipes/multipart_utils.py              new
+backend/recipes/seed.py                         new
+backend/recipes/verify_pagination.py            new
+backend/recipes/requirements.txt                overwrite
+backend/recipes/tests/test_recipes_routes.py    overwrite
+backend/recipes/tests/fake_db.py                overwrite 
+infra/template.yaml                             overwrite
+frontend/src/Recipe.jsx                         overwrite
+frontend/src/Recipe.css                         append the rating-widget block
+
+backend/recipes/token_auth.py                   DELETE (superseded by shared.auth_middleware)

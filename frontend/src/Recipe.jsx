@@ -1,7 +1,63 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getRecipe } from "./api/client";
+import { getRecipe, rateRecipe, getToken } from "./api/client";
 import "./Recipe.css";
+
+function RatingWidget({ recipeId, onRated }) {
+  const [hoverScore, setHoverScore] = useState(0);
+  const [myScore, setMyScore] = useState(0);
+  const [status, setStatus] = useState("idle"); // idle | submitting | error
+  const [error, setError] = useState(null);
+
+  if (!getToken()) {
+    return (
+      <p className="rating-widget-message">
+        <Link to="/login">Log in</Link> to rate this recipe.
+      </p>
+    );
+  }
+
+  async function submitScore(score) {
+    setStatus("submitting");
+    setError(null);
+    try {
+      const res = await rateRecipe(recipeId, score);
+      setMyScore(score);
+      setStatus("idle");
+      onRated(res.avgRating);
+    } catch (err) {
+      setError(err.message);
+      setStatus("error");
+    }
+  }
+
+  const displayScore = hoverScore || myScore;
+
+  return (
+    <div className="rating-widget">
+      <div className="rating-widget-stars" onMouseLeave={() => setHoverScore(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`star-button${n <= displayScore ? " filled" : ""}`}
+            onMouseEnter={() => setHoverScore(n)}
+            onClick={() => submitScore(n)}
+            disabled={status === "submitting"}
+            aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      {status === "submitting" && <span className="rating-widget-status">Submitting…</span>}
+      {status === "error" && <span className="rating-widget-status error">{error}</span>}
+      {myScore > 0 && status === "idle" && (
+        <span className="rating-widget-status">You rated this {myScore}★</span>
+      )}
+    </div>
+  );
+}
 
 function Recipe() {
   const { recipeId } = useParams();
@@ -27,6 +83,10 @@ function Recipe() {
       cancelled = true;
     };
   }, [recipeId]);
+
+  function handleRated(newAvgRating) {
+    setRecipe((prev) => (prev ? { ...prev, avgRating: newAvgRating } : prev));
+  }
 
   if (status === "loading") {
     return (
@@ -69,6 +129,7 @@ function Recipe() {
                 ))}
               </ul>
             )}
+            <RatingWidget recipeId={recipeId} onRated={handleRated} />
           </div>
         </header>
 

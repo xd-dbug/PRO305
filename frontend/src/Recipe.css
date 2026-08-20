@@ -211,3 +211,69 @@
 .state-message.error {
   color: #c0392b;
 }
+
+
+
+
+/* --- Rating widget (issue #38) --- */
+/* Append this block to the existing Recipe.css. Uses the same design
+   tokens as the rest of the file (--accent, --border, --mono, --text,
+   --text-h) rather than hardcoded colors, except for the error red, which
+   matches .state-message.error's existing #c0392b (the codebase hardcodes
+   that one rather than defining an error token, so this stays consistent
+   with that rather than inventing a new pattern). */
+
+.rating-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+}
+
+.rating-widget-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.star-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  padding: 2px;
+  color: var(--border);
+}
+
+.star-button:hover,
+.star-button.filled {
+  color: var(--accent);
+}
+
+.star-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.rating-widget-status {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.rating-widget-status.error {
+  color: #c0392b;
+}
+
+.rating-widget-message {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.rating-widget-message a {
+  color: var(--text);
+  text-decoration: none;
+}
+.rating-widget-message a:hover {
+  color: var(--accent);
+}
