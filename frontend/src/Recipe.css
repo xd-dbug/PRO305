@@ -1,20 +1,24 @@
 .recipe-page {
   flex-grow: 1;
-  width: 100%;
   box-sizing: border-box;
+  /* Break out of #root's centered max-width column so the background covers
+     the full browser viewport instead of just the app's content column. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
   background-image:
     linear-gradient(
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-    url("/RecipeBG.jpeg");
+    url("recipe.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
 .recipe-content {
-  max-width: 760px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 32px 20px 64px;
   text-align: left;
@@ -31,36 +35,34 @@
   color: var(--accent);
 }
 
-.recipe-hero {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  margin: 20px 0 32px;
-  flex-wrap: wrap;
-}
-.recipe-hero-photo,
-.recipe-hero-placeholder {
-  width: 220px;
-  height: 220px;
+/* Title bar */
+.recipe-title-bar {
+  border: 1px solid var(--border);
   border-radius: 10px;
-  object-fit: cover;
-  background: var(--code-bg);
-  flex-shrink: 0;
-}
-.recipe-hero-placeholder {
+  padding: 18px 24px;
+  margin: 16px 0 0;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 56px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
 }
-
-.recipe-hero h1 {
-  margin: 0 0 8px;
+.recipe-title-bar h1 {
+  margin: 0;
+  font-size: 28px;
+}
+.recipe-title-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .recipe-rating {
   font-family: var(--mono);
   color: var(--accent);
   font-size: 15px;
+  white-space: nowrap;
 }
 
 .tag-list {
@@ -69,7 +71,7 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 0;
-  margin: 14px 0 0;
+  margin: 0;
 }
 .tag-list li {
   padding: 4px 10px;
@@ -79,12 +81,68 @@
   font-size: 13px;
 }
 
-.recipe-body {
-  display: grid;
-  gap: 32px;
+/* Servings / prep time / cook time row */
+.recipe-meta-row {
+  display: flex;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 20px 0;
 }
-.recipe-body h2 {
-  font-size: 20px;
+.meta-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 20px;
+  text-align: center;
+}
+.meta-item + .meta-item {
+  border-left: 1px solid var(--border);
+}
+.meta-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+.meta-value {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+/* Two-column layout: ingredients+notes / directions+photo */
+.recipe-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 24px;
+}
+@media (max-width: 700px) {
+  .recipe-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recipe-layout-left,
+.recipe-layout-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.recipe-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+.recipe-box h2 {
+  font-size: 18px;
+  margin: 0 0 14px;
+}
+
+.ingredients-box {
+  flex-grow: 1;
 }
 
 .ingredient-list {
@@ -104,11 +162,52 @@
   color: var(--text-h);
 }
 
+.notes-box {
+  min-height: 120px;
+}
+.notes-text {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.directions-box {
+  flex-grow: 1;
+}
 .step-list {
   padding-left: 22px;
+  margin: 0;
   display: grid;
   gap: 14px;
 }
 .step-list li {
   line-height: 150%;
+}
+
+.photo-box {
+  padding: 0;
+  overflow: hidden;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photo-box-img {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  object-fit: cover;
+  display: block;
+}
+.photo-box-placeholder {
+  font-size: 48px;
+  padding: 40px 0;
+}
+
+.state-message {
+  margin: 32px 0;
+  color: var(--text);
+}
+.state-message.error {
+  color: #c0392b;
 }

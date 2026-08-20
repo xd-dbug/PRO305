@@ -2,12 +2,12 @@
   flex-grow: 1;
   width: 100%;
   box-sizing: border-box;
-  background-image:
+   background-image:
     linear-gradient(
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-    url("/RecipeBG.jpeg");
+    url("OtherBG.jpeg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

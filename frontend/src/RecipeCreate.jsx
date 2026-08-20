@@ -11,6 +11,10 @@ function RecipeCreate() {
 
   const [title, setTitle] = useState("");
   const [tagsInput, setTagsInput] = useState("");
+  const [servings, setServings] = useState("");
+  const [prepTime, setPrepTime] = useState("");
+  const [cookTime, setCookTime] = useState("");
+  const [notes, setNotes] = useState("");
   const [ingredients, setIngredients] = useState([emptyIngredient()]);
   const [steps, setSteps] = useState([""]);
   const [status, setStatus] = useState("idle"); // idle | saving | error
@@ -37,9 +41,16 @@ function RecipeCreate() {
     setStatus("saving");
     setError(null);
 
-    // Shape matches the contract: same body as GET /recipes/{id} minus recipeId/avgRating
+    // Shape matches the contract: same body as GET /recipes/{id} minus recipeId/avgRating.
+    // servings/prepTime/cookTime/notes are NOT in API_CONTRACT.md yet — sending
+    // them is harmless (most APIs ignore unknown fields) but they won't persist
+    // until Person A adds them to the recipe schema and it's re-signed-off.
     const payload = {
       title: title.trim(),
+      servings: servings.trim() || undefined,
+      prepTime: prepTime.trim() || undefined,
+      cookTime: cookTime.trim() || undefined,
+      notes: notes.trim() || undefined,
       ingredients: ingredients
         .filter((ing) => ing.name.trim())
         .map((ing) => ({ name: ing.name.trim(), amount: ing.amount.trim() })),
@@ -63,85 +74,166 @@ function RecipeCreate() {
   // if (!isAuthed) {
   //   return (
   //     <div className="recipe-create-page">
-  //       <p className="state-message">
-  //         You need to be logged in to create a recipe. <Link to="/login">Log in</Link>
-  //       </p>
+  //       <div className="recipe-create-content">
+  //         <p className="state-message">
+  //           You need to be logged in to create a recipe. <Link to="/login">Log in</Link>
+  //         </p>
+  //       </div>
   //     </div>
   //   );
   // }
 
+  const isSaving = status === "saving";
+
   return (
     <div className="recipe-create-page">
       <div className="recipe-create-content">
-      <h1>New recipe</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Title
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </label>
+        <form onSubmit={handleSubmit}>
+          <header className="recipe-title-bar">
+            <input
+              className="title-input"
+              type="text"
+              placeholder="Recipe title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              disabled={isSaving}
+            />
+            <input
+              className="tags-input"
+              type="text"
+              placeholder="Tags, comma separated"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              disabled={isSaving}
+            />
+          </header>
 
-        <label>
-          Tags <span className="hint">(comma separated)</span>
-          <input
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            placeholder="vegetarian, gluten-free"
-          />
-        </label>
-
-        <fieldset>
-          <legend>Ingredients</legend>
-          {ingredients.map((ing, i) => (
-            <div className="ingredient-row" key={i}>
+          <div className="recipe-meta-row">
+            <div className="meta-item">
+              <span className="meta-label">Servings</span>
               <input
+                className="meta-input"
                 type="text"
-                placeholder="Amount"
-                value={ing.amount}
-                onChange={(e) => updateIngredient(i, "amount", e.target.value)}
+                value={servings}
+                onChange={(e) => setServings(e.target.value)}
+                disabled={isSaving}
               />
+            </div>
+            <div className="meta-item">
+              <span className="meta-label">Prep time</span>
               <input
+                className="meta-input"
                 type="text"
-                placeholder="Ingredient"
-                value={ing.name}
-                onChange={(e) => updateIngredient(i, "name", e.target.value)}
+                placeholder="15 min"
+                value={prepTime}
+                onChange={(e) => setPrepTime(e.target.value)}
+                disabled={isSaving}
               />
-              {ingredients.length > 1 && (
-                <button type="button" onClick={() => removeIngredient(i)} aria-label="Remove ingredient">
-                  ✕
-                </button>
-              )}
             </div>
-          ))}
-          <button type="button" onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])}>
-            + Add ingredient
-          </button>
-        </fieldset>
-
-        <fieldset>
-          <legend>Steps</legend>
-          {steps.map((step, i) => (
-            <div className="step-row" key={i}>
-              <span className="step-number">{i + 1}</span>
-              <textarea value={step} onChange={(e) => updateStep(i, e.target.value)} />
-              {steps.length > 1 && (
-                <button type="button" onClick={() => removeStep(i)} aria-label="Remove step">
-                  ✕
-                </button>
-              )}
+            <div className="meta-item">
+              <span className="meta-label">Cook time</span>
+              <input
+                className="meta-input"
+                type="text"
+                placeholder="30 min"
+                value={cookTime}
+                onChange={(e) => setCookTime(e.target.value)}
+                disabled={isSaving}
+              />
             </div>
-          ))}
-          <button type="button" onClick={() => setSteps((prev) => [...prev, ""])}>
-            + Add step
+          </div>
+
+          <div className="recipe-layout">
+            <div className="recipe-layout-left">
+              <fieldset className="recipe-box ingredients-box">
+                <legend>Ingredients</legend>
+                {ingredients.map((ing, i) => (
+                  <div className="ingredient-row" key={i}>
+                    <input
+                      type="text"
+                      placeholder="Amount"
+                      value={ing.amount}
+                      onChange={(e) => updateIngredient(i, "amount", e.target.value)}
+                      disabled={isSaving}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Ingredient"
+                      value={ing.name}
+                      onChange={(e) => updateIngredient(i, "name", e.target.value)}
+                      disabled={isSaving}
+                    />
+                    {ingredients.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeIngredient(i)}
+                        aria-label="Remove ingredient"
+                        disabled={isSaving}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])}
+                  disabled={isSaving}
+                >
+                  + Add ingredient
+                </button>
+              </fieldset>
+
+              <fieldset className="recipe-box notes-box">
+                <legend>Notes</legend>
+                <textarea
+                  placeholder="Anything worth remembering — substitutions, timing tricks, etc."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={isSaving}
+                />
+              </fieldset>
+            </div>
+
+            <div className="recipe-layout-right">
+              <fieldset className="recipe-box directions-box">
+                <legend>Directions</legend>
+                {steps.map((step, i) => (
+                  <div className="step-row" key={i}>
+                    <span className="step-number">{i + 1}</span>
+                    <textarea value={step} onChange={(e) => updateStep(i, e.target.value)} disabled={isSaving} />
+                    {steps.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeStep(i)}
+                        aria-label="Remove step"
+                        disabled={isSaving}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={() => setSteps((prev) => [...prev, ""])} disabled={isSaving}>
+                  + Add step
+                </button>
+              </fieldset>
+
+              <div className="recipe-box photo-box">
+                <p className="photo-box-note">
+                  Photos upload after saving — add one from the recipe page once it's created.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {status === "error" && <p className="state-message error">{error}</p>}
+
+          <button type="submit" className="submit-btn" disabled={isSaving}>
+            {isSaving ? "Saving…" : "Save recipe"}
           </button>
-        </fieldset>
-
-        {status === "error" && <p className="state-message error">{error}</p>}
-
-        <button type="submit" className="submit-btn" disabled={status === "saving"}>
-          {status === "saving" ? "Saving…" : "Save recipe"}
-        </button>
-      </form>
+        </form>
       </div>
     </div>
   );
