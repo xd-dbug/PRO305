@@ -341,7 +341,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: recipe-sharing-mealplan-generation-time
-      AlarmDescription: "TBD — threshold set in Week 3. References a custom metric emitted by the mealplan consumer Lambda, not built yet."
+      AlarmDescription: "Alarms when average mealplan generation time exceeds 5s over 5 minutes — half of the consumer Lambda's 10s timeout, so this fires before jobs start hard-timing out. Metric is emitted by the mealplan consumer Lambda (#37, blocked on this alarm existing)."
       Namespace: RecipeSharing/Mealplan
       MetricName: GenerationDurationMs
       Statistic: Average
