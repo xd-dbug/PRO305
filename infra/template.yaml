@@ -282,6 +282,13 @@ Resources:
     Properties:
       TopicName: recipe-sharing-alarms
 
+  AlarmTopicEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: damian.swiney1@gmail.com
+
   Api5xxRateAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
