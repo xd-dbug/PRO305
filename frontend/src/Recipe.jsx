@@ -1,7 +1,50 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { getRecipe, rateRecipe, getToken } from "./api/client";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { deleteRecipe, getRecipe, getUserId, rateRecipe, getToken } from "./api/client";
 import "./Recipe.css";
+
+function AuthorActions({ recipeId }) {
+  const navigate = useNavigate();
+  const [confirming, setConfirming] = useState(false);
+  const [status, setStatus] = useState("idle"); // idle | deleting | error
+  const [error, setError] = useState(null);
+
+  async function handleDelete() {
+    setStatus("deleting");
+    setError(null);
+    try {
+      await deleteRecipe(recipeId);
+      navigate("/recipes");
+    } catch (err) {
+      setError(err.message);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="author-actions">
+      <Link to={`/recipes/${recipeId}/edit`} className="edit-link">
+        Edit
+      </Link>
+      {!confirming ? (
+        <button type="button" className="delete-btn" onClick={() => setConfirming(true)}>
+          Delete
+        </button>
+      ) : (
+        <span className="delete-confirm">
+          Delete this recipe?
+          <button type="button" className="delete-confirm-btn" onClick={handleDelete} disabled={status === "deleting"}>
+            {status === "deleting" ? "Deleting…" : "Yes, delete"}
+          </button>
+          <button type="button" className="delete-cancel-btn" onClick={() => setConfirming(false)} disabled={status === "deleting"}>
+            Cancel
+          </button>
+        </span>
+      )}
+      {status === "error" && <span className="rating-widget-status error">{error}</span>}
+    </div>
+  );
+}
 
 function RatingWidget({ recipeId, onRated }) {
   const [hoverScore, setHoverScore] = useState(0);
@@ -132,6 +175,8 @@ function Recipe() {
             <RatingWidget recipeId={recipeId} onRated={handleRated} />
           </div>
         </header>
+
+        {recipe.authorId === getUserId() && <AuthorActions recipeId={recipeId} />}
 
         {/* servings/prepTime/cookTime aren't in API_CONTRACT.md yet — they'll
             show as "—" until Person A adds them to the recipe schema. */}

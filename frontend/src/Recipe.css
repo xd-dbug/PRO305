@@ -81,6 +81,61 @@
   font-size: 13px;
 }
 
+/* Edit/delete controls, shown only to the recipe's author */
+.author-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+.edit-link {
+  color: var(--text);
+  text-decoration: none;
+}
+.edit-link:hover {
+  color: var(--accent);
+}
+.delete-btn {
+  font: inherit;
+  font-size: 14px;
+  color: #c0392b;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.delete-btn:hover {
+  border-color: #c0392b;
+}
+.delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.delete-confirm-btn,
+.delete-cancel-btn {
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  background: none;
+}
+.delete-confirm-btn {
+  color: #fff;
+  background: #c0392b;
+  border-color: #c0392b;
+}
+.delete-confirm-btn:disabled,
+.delete-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Servings / prep time / cook time row */
 .recipe-meta-row {
   display: flex;
