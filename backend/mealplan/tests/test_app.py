@@ -111,6 +111,36 @@ def test_success_marks_complete_with_generated_plan(
 
 @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
 @patch("mealplan_app.anthropic")
+@patch("mealplan_app.get_saved_recipes")
+@patch("mealplan_app.get_dietary_tags")
+@patch("mealplan_app.get_connection")
+def test_success_emits_generation_duration_metric(
+        mock_get_conn, mock_get_dietary_tags, mock_get_saved_recipes, mock_anthropic, capsys
+):
+    conn, cursor = _mock_conn(
+        {"user_id": 7, "request_preferences": json.dumps({"days": 1, "mealsPerDay": 1})}
+    )
+    mock_get_conn.return_value = conn
+    mock_get_dietary_tags.return_value = []
+    mock_get_saved_recipes.return_value = []
+
+    plan = {"days": [{"day": 1, "meals": [{"recipeId": None, "name": "Oats", "notes": ""}]}]}
+    client = MagicMock()
+    client.messages.create.return_value = MagicMock(content=[FakeTextBlock(json.dumps(plan))])
+    mock_anthropic.Anthropic.return_value = client
+
+    event = _sqs_event([json.dumps({"jobId": "job-metric"})])
+    mealplan_app.lambda_handler(event, FakeContext())
+
+    emf = json.loads(capsys.readouterr().out)
+    metric_defs = emf["_aws"]["CloudWatchMetrics"][0]
+    assert metric_defs["Namespace"] == "RecipeSharing/Mealplan"
+    assert {"Name": "GenerationDurationMs", "Unit": "Milliseconds"} in metric_defs["Metrics"]
+    assert emf["GenerationDurationMs"][0] >= 0
+
+
+@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+@patch("mealplan_app.anthropic")
 @patch("mealplan_app.get_connection")
 def test_missing_job_row_marks_failed_and_reraises(mock_get_conn, mock_anthropic):
     conn, cursor = _mock_conn(None)

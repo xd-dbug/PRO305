@@ -1,12 +1,16 @@
 import json
 import os
+import time
 
 import anthropic
 from queries import get_dietary_tags, get_saved_recipes
+from aws_lambda_powertools import Metrics
+from aws_lambda_powertools.metrics import MetricUnit
 
 from shared.db import get_connection
 
 CLAUDE_MODEL = "claude-sonnet-5"
+metrics = Metrics(namespace="RecipeSharing/Mealplan", service="mealplan-consumer")
 
 
 def build_prompt(preferences: dict, dietary_tags: list[str], saved_recipes: list[dict]) -> str:
@@ -75,8 +79,13 @@ def _process_record(record):
             dietary_tags = get_dietary_tags(conn, user_id)
             saved_recipes = get_saved_recipes(conn, user_id)
 
-            plan = _call_claude(build_prompt(preferences, dietary_tags, saved_recipes))
-
+            prompt = build_prompt(preferences, dietary_tags, saved_recipes)
+            start = time.monotonic()
+            try:
+                plan = _call_claude(prompt)
+            finally:
+                duration_ms = (time.monotonic() - start) * 1000
+                metrics.add_metric(name="GenerationDurationMs", unit=MetricUnit.Milliseconds, value=duration_ms)
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE mealplan_job SET status = 'complete', generated_plan = %s "
@@ -96,7 +105,7 @@ def _process_record(record):
     finally:
         conn.close()
 
-
+@metrics.log_metrics
 def lambda_handler(event, context):
     records = event.get("Records", [])
     for record in records:
