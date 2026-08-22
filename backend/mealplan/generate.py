@@ -4,10 +4,10 @@ import uuid
 
 import boto3
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig, Response
-from aws_lambda_powertools.event_handler.exceptions import BadRequestError
+from aws_lambda_powertools.event_handler.exceptions import BadRequestError, NotFoundError
 
 from shared.db import get_connection
-from shared.auth_middleware import require_auth
+from shared.auth_middleware import require_auth, require_owner_or_moderator
 
 app = APIGatewayRestResolver(cors=CORSConfig(allow_origin="http://localhost:5173"))
 
@@ -55,6 +55,32 @@ def generate():
         content_type="application/json",
         body=json.dumps({"jobId": job_id, "status": "pending"}),
     )
+
+
+@app.get("/mealplan/status/<job_id>")
+def get_status(job_id: str):
+    user = require_auth(app)
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT user_id, status, generated_plan FROM mealplan_job WHERE id = %s",
+                (job_id,),
+            )
+            job = cursor.fetchone()
+    finally:
+        conn.close()
+
+    if job is None:
+        raise NotFoundError(f"Mealplan job {job_id} not found")
+    require_owner_or_moderator(user, job["user_id"])
+
+    return {
+        "jobId": job_id,
+        "status": job["status"],
+        "mealPlan": json.loads(job["generated_plan"]) if job["generated_plan"] else None,
+    }
 
 
 def lambda_handler(event, context):

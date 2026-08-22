@@ -59,6 +59,30 @@ def _mock_conn():
     return conn, cursor
 
 
+def make_status_event(job_id):
+    return {
+        "httpMethod": "GET",
+        "path": f"/mealplan/status/{job_id}",
+        "resource": "/mealplan/status/{job_id}",
+        "headers": {"Authorization": "Bearer faketoken"},
+        "multiValueHeaders": {},
+        "queryStringParameters": None,
+        "multiValueQueryStringParameters": None,
+        "pathParameters": {"job_id": job_id},
+        "stageVariables": None,
+        "requestContext": {
+            "httpMethod": "GET",
+            "path": f"/mealplan/status/{job_id}",
+            "resourcePath": "/mealplan/status/{job_id}",
+            "stage": "test",
+            "requestId": "test-request-id",
+            "identity": {},
+        },
+        "body": None,
+        "isBase64Encoded": False,
+    }
+
+
 @patch.dict("os.environ", {"MEALPLAN_QUEUE_URL": "https://sqs.fake/mealplan-queue"})
 @patch("mealplan_generate.boto3")
 @patch("mealplan_generate.get_connection")
@@ -116,3 +140,80 @@ def test_generate_rejects_non_positive_days(mock_get_user, mock_get_conn, mock_b
 
     assert result["statusCode"] == 400
     mock_get_conn.assert_not_called()
+
+
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_status_returns_complete_job_with_plan(mock_get_user, mock_get_conn):
+    mock_get_user.return_value = {"sub": "42", "email": "user@example.com", "role": "user"}
+    plan = {"days": [{"day": 1, "meals": [{"recipeId": None, "name": "Oats", "notes": ""}]}]}
+    conn, cursor = _mock_conn()
+    cursor.fetchone.return_value = {
+        "user_id": 42,
+        "status": "complete",
+        "generated_plan": json.dumps(plan),
+    }
+    mock_get_conn.return_value = conn
+
+    result = generate_module.lambda_handler(make_status_event("job-1"), FakeContext())
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body == {"jobId": "job-1", "status": "complete", "mealPlan": plan}
+    conn.close.assert_called_once()
+
+
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_status_returns_null_plan_while_pending(mock_get_user, mock_get_conn):
+    mock_get_user.return_value = {"sub": "42", "email": "user@example.com", "role": "user"}
+    conn, cursor = _mock_conn()
+    cursor.fetchone.return_value = {"user_id": 42, "status": "pending", "generated_plan": None}
+    mock_get_conn.return_value = conn
+
+    result = generate_module.lambda_handler(make_status_event("job-2"), FakeContext())
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body == {"jobId": "job-2", "status": "pending", "mealPlan": None}
+
+
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_status_404s_for_unknown_job(mock_get_user, mock_get_conn):
+    mock_get_user.return_value = {"sub": "42", "email": "user@example.com", "role": "user"}
+    conn, cursor = _mock_conn()
+    cursor.fetchone.return_value = None
+    mock_get_conn.return_value = conn
+
+    result = generate_module.lambda_handler(make_status_event("missing-job"), FakeContext())
+
+    assert result["statusCode"] == 404
+
+
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_status_403s_for_non_owner_non_moderator(mock_get_user, mock_get_conn):
+    mock_get_user.return_value = {"sub": "99", "email": "other@example.com", "role": "user"}
+    conn, cursor = _mock_conn()
+    cursor.fetchone.return_value = {"user_id": 42, "status": "complete", "generated_plan": "{}"}
+    mock_get_conn.return_value = conn
+
+    result = generate_module.lambda_handler(make_status_event("job-3"), FakeContext())
+
+    assert result["statusCode"] == 403
+
+
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_status_allows_moderator_to_view_others_job(mock_get_user, mock_get_conn):
+    mock_get_user.return_value = {"sub": "99", "email": "mod@example.com", "role": "moderator"}
+    conn, cursor = _mock_conn()
+    cursor.fetchone.return_value = {"user_id": 42, "status": "failed", "generated_plan": None}
+    mock_get_conn.return_value = conn
+
+    result = generate_module.lambda_handler(make_status_event("job-4"), FakeContext())
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body == {"jobId": "job-4", "status": "failed", "mealPlan": None}
