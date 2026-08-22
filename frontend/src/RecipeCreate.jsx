@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { createRecipe, getToken } from "./api/client";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { createRecipe, getRecipe, getToken, getUserId, updateRecipe } from "./api/client";
 import "./RecipeCreate.css";
 
 const emptyIngredient = () => ({ name: "", amount: "" });
 
 function RecipeCreate() {
   const navigate = useNavigate();
+  const { recipeId } = useParams();
+  const isEditMode = Boolean(recipeId);
   // const isAuthed = Boolean(getToken());
 
   const [title, setTitle] = useState("");
@@ -17,8 +19,41 @@ function RecipeCreate() {
   const [notes, setNotes] = useState("");
   const [ingredients, setIngredients] = useState([emptyIngredient()]);
   const [steps, setSteps] = useState([""]);
-  const [status, setStatus] = useState("idle"); // idle | saving | error
+  const [status, setStatus] = useState(isEditMode ? "loading" : "idle"); // loading | idle | saving | error
   const [error, setError] = useState(null);
+  const [forbidden, setForbidden] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+    let cancelled = false;
+    getRecipe(recipeId)
+      .then((recipe) => {
+        if (cancelled) return;
+        if (recipe.authorId !== getUserId()) {
+          setForbidden(true);
+          setStatus("idle");
+          return;
+        }
+        setTitle(recipe.title || "");
+        setTagsInput((recipe.tags || []).join(", "));
+        setServings(recipe.servings || "");
+        setPrepTime(recipe.prepTime || "");
+        setCookTime(recipe.cookTime || "");
+        setNotes(recipe.notes || "");
+        setIngredients(recipe.ingredients?.length ? recipe.ingredients : [emptyIngredient()]);
+        setSteps(recipe.steps?.length ? recipe.steps : [""]);
+        setStatus("idle");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(err.message);
+        setStatus("idle");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditMode, recipeId]);
 
   function updateIngredient(index, field, value) {
     setIngredients((prev) => prev.map((ing, i) => (i === index ? { ...ing, [field]: value } : ing)));
@@ -63,8 +98,13 @@ function RecipeCreate() {
     };
 
     try {
-      const created = await createRecipe(payload);
-      navigate(`/recipes/${created.recipeId}`);
+      if (isEditMode) {
+        await updateRecipe(recipeId, payload);
+        navigate(`/recipes/${recipeId}`);
+      } else {
+        const created = await createRecipe(payload);
+        navigate(`/recipes/${created.recipeId}`);
+      }
     } catch (err) {
       setError(err.message);
       setStatus("error");
@@ -82,6 +122,38 @@ function RecipeCreate() {
   //     </div>
   //   );
   // }
+
+  if (status === "loading") {
+    return (
+      <div className="recipe-create-page">
+        <div className="recipe-create-content">
+          <p className="state-message">Loading recipe…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (forbidden) {
+    return (
+      <div className="recipe-create-page">
+        <div className="recipe-create-content">
+          <p className="state-message error">You can only edit your own recipes.</p>
+          <Link to={`/recipes/${recipeId}`}>← Back to recipe</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="recipe-create-page">
+        <div className="recipe-create-content">
+          <p className="state-message error">Couldn't load this recipe: {loadError}</p>
+          <Link to="/recipes">← All recipes</Link>
+        </div>
+      </div>
+    );
+  }
 
   const isSaving = status === "saving";
 
@@ -231,7 +303,7 @@ function RecipeCreate() {
           {status === "error" && <p className="state-message error">{error}</p>}
 
           <button type="submit" className="submit-btn" disabled={isSaving}>
-            {isSaving ? "Saving…" : "Save recipe"}
+            {isSaving ? "Saving…" : isEditMode ? "Save changes" : "Save recipe"}
           </button>
         </form>
       </div>
