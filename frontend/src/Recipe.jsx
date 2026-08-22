@@ -146,7 +146,7 @@ function Recipe() {
       <div className="recipe-page">
         <div className="recipe-content">
           <p className="state-message error">Couldn't load this recipe: {error}</p>
-          <Link to="/recipe">← All recipes</Link>
+          <Link to="/recipes">← All recipes</Link>
         </div>
       </div>
     );
@@ -155,7 +155,7 @@ function Recipe() {
   return (
     <div className="recipe-page">
       <article className="recipe-content">
-        <Link to="/recipe" className="back-link">
+        <Link to="/recipes" className="back-link">
           ← All recipes
         </Link>
 

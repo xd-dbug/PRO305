@@ -9,7 +9,7 @@ function RecipeCreate() {
   const navigate = useNavigate();
   const { recipeId } = useParams();
   const isEditMode = Boolean(recipeId);
-  // const isAuthed = Boolean(getToken());
+  const isAuthed = Boolean(getToken());
 
   const [title, setTitle] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -111,17 +111,17 @@ function RecipeCreate() {
     }
   }
 
-  // if (!isAuthed) {
-  //   return (
-  //     <div className="recipe-create-page">
-  //       <div className="recipe-create-content">
-  //         <p className="state-message">
-  //           You need to be logged in to create a recipe. <Link to="/login">Log in</Link>
-  //         </p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  if (!isAuthed) {
+    return (
+      <div className="recipe-create-page">
+        <div className="recipe-create-content">
+          <p className="state-message">
+            You need to be logged in to create a recipe. <Link to="/login">Log in</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (status === "loading") {
     return (
