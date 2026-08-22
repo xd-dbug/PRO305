@@ -215,6 +215,12 @@ Resources:
             RestApiId: !Ref RecipeApi
             Path: /mealplan/generate
             Method: post
+        GetMealplanStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/mealplan/status/{job_id}"
+            Method: get
 
   MealplanFunction:
     Type: AWS::Serverless::Function
