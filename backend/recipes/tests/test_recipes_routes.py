@@ -278,3 +278,30 @@ def test_rate_recipe_records_score_against_token_sub(fake_db):
     )
     assert result["statusCode"] == 201
     assert fake_db.ratings[(RECIPE_ID, OWNER_SUB)] == 5
+
+# ---------------------------------------------------------------------------
+# upload_photo (POST /recipes/{id}/photo) and save_recipe (POST /recipes/{id}/save)
+# — issue #40. Neither route had a missing-token test before this; both call
+# require_auth(app) as their first line (before touching the DB), so a
+# missing/invalid header should 401 without needing a seeded recipe.
+# ---------------------------------------------------------------------------
+
+def test_upload_photo_rejects_missing_token(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event(
+            "POST",
+            f"/recipes/{RECIPE_ID}/photo",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers={"Content-Type": "multipart/form-data; boundary=x"},
+        ),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 401
+
+
+def test_save_recipe_rejects_missing_token(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event("POST", f"/recipes/{RECIPE_ID}/save", path_params={"recipe_id": str(RECIPE_ID)}),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 401

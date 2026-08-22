@@ -8,6 +8,7 @@ import RecipeList from "./RecipeList.jsx";
 import Recipe from "./Recipe.jsx";
 import RecipeCreate from "./RecipeCreate.jsx";
 import MealPlan from "./MealPlan.jsx";
+import NotFound from "./NotFound.jsx";
 
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
       <Route path="/recipes/new" element={<RecipeCreate />} />
       <Route path="/recipes/:recipeId" element={<Recipe />} />
       <Route path="/mealplan" element={<MealPlan />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   </>
  );
