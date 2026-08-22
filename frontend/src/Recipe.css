@@ -11,7 +11,7 @@
       color-mix(in srgb, var(--bg) 88%, transparent),
       color-mix(in srgb, var(--bg) 88%, transparent)
     ),
-    url("recipe.png");
+    url("/recipe.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
