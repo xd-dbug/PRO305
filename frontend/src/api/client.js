@@ -27,6 +27,45 @@ export function setUserId(userId) {
   }
 }
 
+// Thrown by request() for every failure case — network-level (couldn't reach
+// the server at all) and HTTP-level (server responded with an error status).
+// `status` is 0 for network failures (never reached the server) so it's always
+// safe to check `err.status`, and `code` is the contract's `error` field
+// (e.g. "Unauthorized") when the server sent one.
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = null } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// Maps a caught error to user-facing copy, with per-call overrides for
+// statuses that need different wording in different flows (e.g. a 401 on
+// login means "wrong password", but a 401 on create-recipe means "log in
+// first"). Falls back to the API's own message for anything not covered.
+export function friendlyApiErrorMessage(err, overrides = {}) {
+  const status = err instanceof ApiError ? err.status : null;
+  if (status !== null && overrides[status]) return overrides[status];
+
+  switch (status) {
+    case 0:
+      return err.message; // already a clear "couldn't reach the API" message
+    case 401:
+      return "You need to be logged in to do that.";
+    case 403:
+      return "You don't have permission to do that.";
+    case 404:
+      return "That couldn't be found.";
+    default:
+      if (status >= 500) {
+        return "Something went wrong on our end. Please try again in a moment.";
+      }
+      return err.message || "Something went wrong.";
+  }
+}
+
 async function request(path, options = {}) {
   const token = getToken();
 
@@ -44,16 +83,17 @@ async function request(path, options = {}) {
     // fetch() throws a plain "Failed to fetch" TypeError when it can't even
     // reach the server (wrong URL, server not running, CORS, offline, etc.) —
     // that's not the same as the request reaching the API and failing.
-    throw new Error(
+    throw new ApiError(
       `Couldn't reach the API at ${API_BASE_URL}. Check that VITE_API_BASE_URL ` +
-        `in your .env points to a running server and that it's reachable.`
+        `in your .env points to a running server and that it's reachable.`,
+      { status: 0, code: "network_error" }
     );
   }
 
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const message = body?.message || body?.error || `Request failed with ${response.status}`;
-    throw new Error(message);
+    throw new ApiError(message, { status: response.status, code: body?.error ?? null });
   }
   return body;
 }

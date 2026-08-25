@@ -218,10 +218,54 @@
   cursor: not-allowed;
 }
 
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  color: var(--text-h);
+  font-size: 14px;
+  text-decoration: none;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.back-link:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
 .state-message {
   margin-top: 16px;
   color: var(--text);
 }
 .state-message.error {
   color: #c0392b;
+}
+
+.recipe-not-found {
+  margin-top: 40px;
+  padding: 48px 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.not-found-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+.recipe-not-found h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.recipe-not-found p {
+  color: var(--text);
+  margin: 0 0 12px;
 }

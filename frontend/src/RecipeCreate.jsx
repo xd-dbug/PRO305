@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { createRecipe, getRecipe, getToken, getUserId, updateRecipe } from "./api/client";
+import { createRecipe, getRecipe, getToken, getUserId, updateRecipe, friendlyApiErrorMessage } from "./api/client";
 import "./RecipeCreate.css";
 
 const emptyIngredient = () => ({ name: "", amount: "" });
@@ -22,6 +22,7 @@ function RecipeCreate() {
   const [status, setStatus] = useState(isEditMode ? "loading" : "idle"); // loading | idle | saving | error
   const [error, setError] = useState(null);
   const [forbidden, setForbidden] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
@@ -47,7 +48,12 @@ function RecipeCreate() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setLoadError(err.message);
+        if (err.status === 404) {
+          setNotFound(true);
+          setStatus("idle");
+          return;
+        }
+        setLoadError(friendlyApiErrorMessage(err));
         setStatus("idle");
       });
     return () => {
@@ -106,7 +112,15 @@ function RecipeCreate() {
         navigate(`/recipes/${created.recipeId}`);
       }
     } catch (err) {
-      setError(err.message);
+      setError(
+        friendlyApiErrorMessage(err, {
+          401: isEditMode
+            ? "You've been logged out. Log in and try saving again."
+            : "You need to be logged in to create a recipe.",
+          403: "You can only edit your own recipes.",
+          404: "This recipe no longer exists — it may have been deleted.",
+        })
+      );
       setStatus("error");
     }
   }
@@ -138,7 +152,26 @@ function RecipeCreate() {
       <div className="recipe-create-page">
         <div className="recipe-create-content">
           <p className="state-message error">You can only edit your own recipes.</p>
-          <Link to={`/recipes/${recipeId}`}>← Back to recipe</Link>
+          <Link to={`/recipes/${recipeId}`} className="back-link">← Back to recipe</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="recipe-create-page">
+        <div className="recipe-create-content">
+          <div className="recipe-not-found">
+            <span className="not-found-icon" aria-hidden="true">
+              🔍
+            </span>
+            <h1>Recipe not found</h1>
+            <p>This recipe doesn't exist, or may have already been deleted.</p>
+            <Link to="/recipes" className="back-link">
+              ← All recipes
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -149,7 +182,7 @@ function RecipeCreate() {
       <div className="recipe-create-page">
         <div className="recipe-create-content">
           <p className="state-message error">Couldn't load this recipe: {loadError}</p>
-          <Link to="/recipes">← All recipes</Link>
+          <Link to="/recipes" className="back-link">← All recipes</Link>
         </div>
       </div>
     );
