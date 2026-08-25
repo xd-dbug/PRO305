@@ -1,7 +1,7 @@
 # Infra — deploy instructions
 
-This stack is defined in `template.yaml` (AWS SAM). Nothing here has been deployed —
-these are templates and skeleton code only.
+This stack is defined in `template.yaml` (AWS SAM) and is deployed — this isn't a
+skeleton-only stack anymore.
 
 ## Prerequisites
 
@@ -30,27 +30,33 @@ You'll be prompted for:
 
 `sam deploy --guided` writes your answers to `samconfig.toml`, which is gitignored.
 
-## Known gaps in this skeleton
+## Current state
 
-- `RdsTestFunction` AND `AuthFunction` both have no `VpcConfig`. RDS instances default to
-  a VPC; a Lambda outside that VPC cannot reach it, and `AuthFunction`'s `/auth/login`
-  route queries RDS via `shared.db.get_connection()` just like `RdsTestFunction` does — so
-  it has the exact same gap. Add `VpcConfig` (subnet + security group IDs) to both
-  functions once you know which VPC/subnets the RDS instance landed in — these are only
-  knowable after `RecipeDB` is actually created, so they can't be hardcoded here.
-- `AlarmTopic` (the SNS topic) has no subscription. Even once the alarms above are firing
-  correctly, nobody gets notified — subscribe an email/endpoint to `AlarmTopic` before
-  relying on the alarms for anything.
-- The CloudWatch alarms' `ApiName` dimension previously referenced `!Ref RecipeApi` (the
-  REST API ID), which never matches the `AWS/ApiGateway` namespace's `ApiName` dimension
-  (matched against the API's display name). This has been corrected — `RecipeApi` now has
-  an explicit `Name: recipe-sharing-api`, and both alarms' dimension value is the literal
-  string `recipe-sharing-api`.
-- The `MealplanDlqFailureRateAlarm` and `MealplanGenerationTimeAlarm` alarms reference a
-  DLQ and a custom metric that don't exist yet — they'll stay in `INSUFFICIENT_DATA` until
-  the mealplan track is built. This is expected.
-- All 4 CloudWatch alarm thresholds are placeholders (per the seed issue: "thresholds TBD
-  in Week 3"). Revisit before relying on them.
+- No Lambda in this stack has `VpcConfig`, and that's deliberate, not a gap: the mealplan
+  consumer needs public internet access to reach the Claude API, and the default VPC has
+  no NAT gateway. Instead, `RecipeDB` is `PubliclyAccessible: true`, reachable from
+  anywhere via `RecipeDbSecurityGroup` (open on 3306), protected by the DB password alone
+  rather than network isolation. `RecipeDB` also has `DeletionProtection: true`.
+- `AlarmTopic` has a live email subscription (`AlarmTopicEmailSubscription`, to
+  `damian.swiney1@gmail.com`) — alarm notifications are delivered, not just configured.
+- The CloudWatch alarms' `ApiName` dimension matches `RecipeApi`'s explicit
+  `Name: recipe-sharing-api`.
+- `MealplanDLQ` and the `GenerationDurationMs` custom metric (namespace
+  `RecipeSharing/Mealplan`, emitted by the mealplan consumer Lambda) both exist and are
+  wired up — `MealplanDlqFailureRateAlarm` and `MealplanGenerationTimeAlarm` have real
+  data to alarm on, not just `INSUFFICIENT_DATA`.
+- All 4 CloudWatch alarm thresholds are real, not placeholders: 5xx rate ≥1 in 5 min, p95
+  latency ≥1000ms, any DLQ message, and generation time ≥5000ms (half the consumer
+  Lambda's 10s timeout).
+- All 6 functions' log groups have `RetentionInDays: 14` set via
+  `aws logs put-retention-policy` — logs no longer retain forever by default. This is
+  *not* CloudFormation-managed: every function except `RdsTestFunction` already had an
+  auto-created log group from prior invocations before this was set, and CloudFormation's
+  early validation (`AWS::EarlyValidation::ResourceExistenceCheck`) refuses to add a
+  `AWS::Logs::LogGroup` resource for a physical name that already exists unmanaged —
+  it needs a `resources-to-import` IMPORT changeset to adopt them properly, not a normal
+  `Add`. Until that's done, retention is applied operationally and could drift on a stack
+  replacement or manual console change.
 
 ## Manual smoke test after deploying
 
@@ -59,11 +65,11 @@ You'll be prompted for:
     # -> {"status": "ok"}
 
     aws lambda invoke --function-name <RdsTestFunction's deployed name> /dev/stdout
-    # -> {"statusCode": 200, "body": "{\"rds_connection\": \"ok\"}"} once VpcConfig is set on both RDS-dependent Lambdas
+    # -> {"statusCode": 200, "body": "{\"rds_connection\": \"ok\"}"}
 
-`sam local invoke` is not a substitute for the above: it runs a container on your own
-machine, and `VpcConfig` only affects a *deployed* Lambda's networking — it does nothing
-for a local container. The RDS instance is also `PubliclyAccessible: false`, so a local
-machine can't reach it either way. On top of that, `sam local invoke` against an
-undeployed stack can't resolve `!GetAtt RecipeDB.Endpoint.Address`, so `DB_HOST` would be
-empty. Use `aws lambda invoke` against the real deployed function instead, as above.
+`sam local invoke` is not a great substitute for the above: it runs a container on your
+own machine, and against an undeployed stack it can't resolve
+`!GetAtt RecipeDB.Endpoint.Address`, so `DB_HOST` would be empty. Since `RecipeDB` is
+`PubliclyAccessible: true`, a local machine *can* reach it directly if you pass `DB_HOST`
+yourself — but `aws lambda invoke` against the real deployed function is simpler and
+matches what actually runs in prod.

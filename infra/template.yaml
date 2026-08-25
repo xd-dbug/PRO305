@@ -96,6 +96,12 @@ Resources:
       Layers:
         - !Ref SharedLayer
       Events:
+        Register:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /auth/register
+            Method: post
         Login:
           Type: Api
           Properties:
@@ -227,6 +233,11 @@ Resources:
     Properties:
       CodeUri: ../backend/mealplan/
       Handler: app.lambda_handler
+      # Overrides the global 128MB floor — this function calls the Claude
+      # API and does JSON parsing + a DB write; Lambda CPU/network bandwidth
+      # scales with memory, so 128MB slows the outbound call and increases
+      # timeout risk.
+      MemorySize: 256
       Layers:
         - !Ref SharedLayer
       Events:
@@ -235,6 +246,17 @@ Resources:
           Properties:
             Queue: !GetAtt MealplanQueue.Arn
             BatchSize: 1
+
+  # NOTE: log retention for all 6 functions is set directly via
+  # `aws logs put-retention-policy`, not as AWS::Logs::LogGroup resources
+  # here. Every function except RdsTestFunction had already been invoked in
+  # prod (and so already had an auto-created, CloudFormation-unmanaged log
+  # group) before this was added — declaring a LogGroup resource for an
+  # already-existing physical name fails CloudFormation's early validation
+  # (AWS::EarlyValidation::ResourceExistenceCheck) rather than adopting it.
+  # Doing this via CFN properly would need a `resources-to-import` IMPORT
+  # changeset first. Retention is applied operationally instead; it isn't
+  # IaC-tracked, so a stack replacement or console change could drift it.
 
   RecipeDbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -263,6 +285,7 @@ Resources:
       MasterUsername: admin
       MasterUserPassword: !Ref DBPassword
       PubliclyAccessible: true
+      DeletionProtection: true
       VPCSecurityGroups:
         - !GetAtt RecipeDbSecurityGroup.GroupId
       BackupRetentionPeriod: 1

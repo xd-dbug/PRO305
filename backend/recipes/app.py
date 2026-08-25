@@ -90,7 +90,11 @@ def _row_to_summary(row: dict) -> dict:
         "recipeId": str(row["id"]),
         "title": row["title"],
         "photoUrl": _photo_url(row.get("photo_url")),
-        "avgRating": float(row["rating_avg"]) if row.get("rating_avg") is not None else None,
+        # rating_avg is NOT NULL DEFAULT 0 (never NULL) and ratings are 1-5,
+        # so a real average can never be exactly 0 — falsy-check is how we
+        # tell "never rated" apart from "has ratings" without a separate
+        # rating_count column.
+        "avgRating": float(row["rating_avg"]) if row.get("rating_avg") else None,
         "authorId": str(row["author_id"]),
     }
 
@@ -103,9 +107,17 @@ def _row_to_detail(cur, row: dict) -> dict:
         "ingredients": _fetch_ingredients(cur, row["id"]),
         "steps": _fetch_steps(cur, row["id"]),
         "photoUrl": _photo_url(row.get("photo_url")),
-        "avgRating": float(row["rating_avg"]) if row.get("rating_avg") is not None else None,
+        "avgRating": float(row["rating_avg"]) if row.get("rating_avg") else None,
         "tags": _fetch_tags(cur, row["id"]),
     }
+
+
+# Match schema.sql's VARCHAR caps so oversized input gets a clean 400
+# instead of hitting MySQL's data-too-long error as an unhandled 500.
+MAX_TITLE_LENGTH = 255
+MAX_INGREDIENT_NAME_LENGTH = 255
+MAX_INGREDIENT_AMOUNT_LENGTH = 100
+MAX_TAG_LENGTH = 50
 
 
 def _validate_recipe_body(body: dict) -> dict:
@@ -115,14 +127,22 @@ def _validate_recipe_body(body: dict) -> dict:
     tags = (body or {}).get("tags", [])
     if not title or not isinstance(title, str):
         raise BadRequestError("title is required")
+    if len(title) > MAX_TITLE_LENGTH:
+        raise BadRequestError(f"title must be at most {MAX_TITLE_LENGTH} characters")
     if not isinstance(ingredients, list) or not ingredients:
         raise BadRequestError("ingredients must be a non-empty array")
     if not all(isinstance(i, dict) and i.get("name") and i.get("amount") for i in ingredients):
         raise BadRequestError("each ingredient needs name and amount")
+    if not all(len(i["name"]) <= MAX_INGREDIENT_NAME_LENGTH for i in ingredients):
+        raise BadRequestError(f"ingredient name must be at most {MAX_INGREDIENT_NAME_LENGTH} characters")
+    if not all(len(i["amount"]) <= MAX_INGREDIENT_AMOUNT_LENGTH for i in ingredients):
+        raise BadRequestError(f"ingredient amount must be at most {MAX_INGREDIENT_AMOUNT_LENGTH} characters")
     if not isinstance(steps, list) or not steps or not all(isinstance(s, str) for s in steps):
         raise BadRequestError("steps must be a non-empty array of strings")
     if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
         raise BadRequestError("tags must be an array of strings")
+    if not all(len(t) <= MAX_TAG_LENGTH for t in tags):
+        raise BadRequestError(f"tag must be at most {MAX_TAG_LENGTH} characters")
     return {"title": title, "ingredients": ingredients, "steps": steps, "tags": tags}
 
 

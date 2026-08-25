@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
+import ErrorBoundary from "./ErrorBoundary.jsx";
 import Nav from "./Nav.jsx";
 import Login from "./Login.jsx";
 import Register from "./Register.jsx";
@@ -15,17 +16,19 @@ function App() {
  return(
   <>
     <Nav />
-    <Routes>
-      <Route path="/" element={<Homepage />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/browser" element={<Browser />} />
-      <Route path="/recipes" element={<RecipeList />} />
-      <Route path="/recipes/new" element={<RecipeCreate />} />
-      <Route path="/recipes/:recipeId" element={<Recipe />} />
-      <Route path="/mealplan" element={<MealPlan />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/" element={<Homepage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/browser" element={<Browser />} />
+        <Route path="/recipes" element={<RecipeList />} />
+        <Route path="/recipes/new" element={<RecipeCreate />} />
+        <Route path="/recipes/:recipeId" element={<Recipe />} />
+        <Route path="/mealplan" element={<MealPlan />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </ErrorBoundary>
   </>
  );
 

@@ -1,13 +1,16 @@
+import json
 import os
 
-from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig
+from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig, Response
 from aws_lambda_powertools.event_handler.exceptions import BadRequestError, UnauthorizedError
 
-from auth_service import issue_token, verify_password
+from auth_service import hash_password, issue_token, verify_password
 from shared.auth_middleware import require_auth
 from shared.db import get_connection
 
 app = APIGatewayRestResolver(cors=CORSConfig(allow_origin="http://localhost:5173"))
+
+MIN_PASSWORD_LENGTH = 8
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +67,44 @@ def _replace_dietary_tags(cursor, user_id, tags):
         )
 
 
+@app.post("/auth/register")
+def register():
+    body = app.current_event.json_body or {}
+    email = body.get("email")
+    password = body.get("password")
+    display_name = body.get("displayName")
+    if not email or not password or not display_name:
+        raise BadRequestError("email, password, and displayName are required")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise BadRequestError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+            if cursor.fetchone() is not None:
+                raise BadRequestError("email is already registered")
+
+            password_hash = hash_password(password)
+            cursor.execute(
+                "INSERT INTO users (email, password_hash, display_name) VALUES (%s, %s, %s)",
+                (email, password_hash, display_name),
+            )
+            user_id = cursor.lastrowid
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return Response(
+        status_code=201,
+        content_type="application/json",
+        body=json.dumps({"userId": str(user_id), "email": email, "displayName": display_name}),
+    )
+
+
 @app.post("/auth/login")
 def login():
     body = app.current_event.json_body or {}
@@ -87,7 +128,7 @@ def login():
         raise UnauthorizedError("invalid email or password")
 
     token = issue_token(row["id"], row["email"], row["role"], secret=os.environ["JWT_SECRET"])
-    return {"token": token}
+    return {"token": token, "userId": str(row["id"]), "role": row["role"]}
 
 
 @app.get("/users/me/preferences")
