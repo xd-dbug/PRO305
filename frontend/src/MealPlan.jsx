@@ -1,13 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { generateMealPlan, getMealPlanStatus } from "./api/client";
+import {
+  generateMealPlan,
+  getMealPlanStatus,
+  getPreferences,
+  getToken,
+  updatePreferences,
+} from "./api/client";
 import "./MealPlan.css";
 
 const POLL_INTERVAL_MS = 4000;
 const TIMEOUT_MS = 2 * 60 * 1000; // cap at ~2 min per API_CONTRACT.md
 
+function parseDietaryTags(input) {
+  return input
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 function MealPlan() {
   const [days, setDays] = useState(7);
   const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [dietaryTagsInput, setDietaryTagsInput] = useState("");
 
   // idle | pending | complete | failed | timeout | error
   const [phase, setPhase] = useState("idle");
@@ -30,6 +44,16 @@ function MealPlan() {
   }
 
   useEffect(() => clearTimers, []);
+
+  // Pre-fill from the user's saved preferences, if any. Not critical to the
+  // page working — if it fails (e.g. not logged in yet) the field just
+  // starts empty, same as generating always did before this existed.
+  useEffect(() => {
+    if (!getToken()) return;
+    getPreferences()
+      .then((res) => setDietaryTagsInput((res.dietaryTags || []).join(", ")))
+      .catch(() => {});
+  }, []);
 
   function schedulePoll(jobId) {
     pollTimeoutRef.current = setTimeout(() => runPoll(jobId), POLL_INTERVAL_MS);
@@ -77,6 +101,13 @@ function MealPlan() {
     setPhase("pending");
 
     try {
+      // Dietary tags are a property of the user's profile, not part of the
+      // generate request itself — the mealplan consumer reads them straight
+      // from the users/me/preferences table (backend/mealplan/queries.py).
+      // Save whatever's in the field before generating so this run (and
+      // future ones) picks it up.
+      await updatePreferences(parseDietaryTags(dietaryTagsInput));
+
       const { jobId } = await generateMealPlan({
         days: Number(days),
         mealsPerDay: Number(mealsPerDay),
@@ -132,6 +163,16 @@ function MealPlan() {
             max="6"
             value={mealsPerDay}
             onChange={(e) => setMealsPerDay(e.target.value)}
+            disabled={isPending}
+          />
+        </label>
+        <label>
+          Dietary preferences
+          <input
+            type="text"
+            placeholder="vegetarian, gluten-free"
+            value={dietaryTagsInput}
+            onChange={(e) => setDietaryTagsInput(e.target.value)}
             disabled={isPending}
           />
         </label>

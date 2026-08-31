@@ -64,5 +64,8 @@ pulling a new dependency into auth/mealplan's shared layer.
 
 ## Not touched
 
-`POST /recipes/{id}/save` — not in `API_CONTRACT.md`, not one of the
-three Week 2 recipes tickets. Left as the original stub.
+`POST /recipes/{id}/save` was left as the original no-op stub through
+Week 2 (not in `API_CONTRACT.md`, not one of the three Week 2 recipes
+tickets) — resolved in Week 4 (issue #78): now backed by the
+`saved_recipe` table, with a matching `DELETE` route and a
+`GET /recipes/saved` list endpoint, all now in `API_CONTRACT.md`.

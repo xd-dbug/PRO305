@@ -37,7 +37,8 @@
   font-weight: 500;
   color: var(--text-h);
 }
-.mealplan-form input[type="number"] {
+.mealplan-form input[type="number"],
+.mealplan-form input[type="text"] {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);

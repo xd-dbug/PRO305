@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { getToken, setToken, setUserId } from "./api/client";
+import { getToken, setToken, setUserId, setRole } from "./api/client";
 import "./Nav.css";
 
 function Nav() {
@@ -11,6 +11,7 @@ function Nav() {
   function handleLogout() {
     setToken(null);
     setUserId(null);
+    setRole(null);
     navigate("/");
   }
 

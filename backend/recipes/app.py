@@ -23,7 +23,6 @@ import json
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver, CORSConfig, Response
 from aws_lambda_powertools.event_handler.exceptions import (
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
 )
 
@@ -109,6 +108,10 @@ def _row_to_detail(cur, row: dict) -> dict:
         "photoUrl": _photo_url(row.get("photo_url")),
         "avgRating": float(row["rating_avg"]) if row.get("rating_avg") else None,
         "tags": _fetch_tags(cur, row["id"]),
+        "servings": row.get("servings"),
+        "prepTime": row.get("prep_time"),
+        "cookTime": row.get("cook_time"),
+        "notes": row.get("notes"),
     }
 
 
@@ -118,6 +121,9 @@ MAX_TITLE_LENGTH = 255
 MAX_INGREDIENT_NAME_LENGTH = 255
 MAX_INGREDIENT_AMOUNT_LENGTH = 100
 MAX_TAG_LENGTH = 50
+MAX_SERVINGS_LENGTH = 50
+MAX_PREP_TIME_LENGTH = 50
+MAX_COOK_TIME_LENGTH = 50
 
 
 def _validate_recipe_body(body: dict) -> dict:
@@ -125,6 +131,10 @@ def _validate_recipe_body(body: dict) -> dict:
     ingredients = (body or {}).get("ingredients")
     steps = (body or {}).get("steps")
     tags = (body or {}).get("tags", [])
+    servings = (body or {}).get("servings")
+    prep_time = (body or {}).get("prepTime")
+    cook_time = (body or {}).get("cookTime")
+    notes = (body or {}).get("notes")
     if not title or not isinstance(title, str):
         raise BadRequestError("title is required")
     if len(title) > MAX_TITLE_LENGTH:
@@ -143,7 +153,33 @@ def _validate_recipe_body(body: dict) -> dict:
         raise BadRequestError("tags must be an array of strings")
     if not all(len(t) <= MAX_TAG_LENGTH for t in tags):
         raise BadRequestError(f"tag must be at most {MAX_TAG_LENGTH} characters")
-    return {"title": title, "ingredients": ingredients, "steps": steps, "tags": tags}
+    if servings is not None:
+        if not isinstance(servings, str):
+            raise BadRequestError("servings must be a string")
+        if len(servings) > MAX_SERVINGS_LENGTH:
+            raise BadRequestError(f"servings must be at most {MAX_SERVINGS_LENGTH} characters")
+    if prep_time is not None:
+        if not isinstance(prep_time, str):
+            raise BadRequestError("prepTime must be a string")
+        if len(prep_time) > MAX_PREP_TIME_LENGTH:
+            raise BadRequestError(f"prepTime must be at most {MAX_PREP_TIME_LENGTH} characters")
+    if cook_time is not None:
+        if not isinstance(cook_time, str):
+            raise BadRequestError("cookTime must be a string")
+        if len(cook_time) > MAX_COOK_TIME_LENGTH:
+            raise BadRequestError(f"cookTime must be at most {MAX_COOK_TIME_LENGTH} characters")
+    if notes is not None and not isinstance(notes, str):
+        raise BadRequestError("notes must be a string")
+    return {
+        "title": title,
+        "ingredients": ingredients,
+        "steps": steps,
+        "tags": tags,
+        "servings": servings,
+        "prepTime": prep_time,
+        "cookTime": cook_time,
+        "notes": notes,
+    }
 
 
 def _replace_ingredients_steps_tags(cur, recipe_id, ingredients, steps, tags):
@@ -226,6 +262,47 @@ def list_recipes():
     }
 
 
+# Registered before /recipes/<recipe_id> — "saved" would otherwise be
+# swallowed as a recipe_id by that route's catch-all pattern.
+@app.get("/recipes/saved")
+def list_saved_recipes():
+    user = require_auth(app)
+    q = app.current_event.query_string_parameters or {}
+    try:
+        page = max(int(q.get("page", 1)), 1)
+        limit = min(max(int(q.get("limit", DEFAULT_PAGE_LIMIT)), 1), MAX_PAGE_LIMIT)
+    except ValueError:
+        raise BadRequestError("page and limit must be integers")
+    offset = (page - 1) * limit
+
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS total FROM saved_recipe WHERE user_id = %s",
+            (user["sub"],),
+        )
+        total = cur.fetchone()["total"]
+        total_pages = max((total + limit - 1) // limit, 1)
+
+        cur.execute(
+            """
+            SELECT r.* FROM recipes r
+            JOIN saved_recipe sr ON sr.recipe_id = r.id
+            WHERE sr.user_id = %s
+            ORDER BY sr.created_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            (user["sub"], limit, offset),
+        )
+        rows = cur.fetchall()
+
+    return {
+        "recipes": [_row_to_summary(r) for r in rows],
+        "page": page,
+        "totalPages": total_pages,
+    }
+
+
 @app.get("/recipes/<recipe_id>")
 def get_recipe(recipe_id: str):
     conn = get_connection()
@@ -244,8 +321,16 @@ def create_recipe():
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO recipes (title, author_id) VALUES (%s, %s)",
-                (body["title"], user["sub"]),
+                "INSERT INTO recipes (title, author_id, servings, prep_time, cook_time, notes) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (
+                    body["title"],
+                    user["sub"],
+                    body["servings"],
+                    body["prepTime"],
+                    body["cookTime"],
+                    body["notes"],
+                ),
             )
             new_id = cur.lastrowid
             _replace_ingredients_steps_tags(cur, new_id, body["ingredients"], body["steps"], body["tags"])
@@ -270,7 +355,18 @@ def update_recipe(recipe_id: str):
             existing = _fetch_recipe_row_or_404(cur, recipe_id)
             require_owner_or_moderator(user, existing["author_id"])
 
-            cur.execute("UPDATE recipes SET title = %s WHERE id = %s", (body["title"], recipe_id))
+            cur.execute(
+                "UPDATE recipes SET title = %s, servings = %s, prep_time = %s, cook_time = %s, "
+                "notes = %s WHERE id = %s",
+                (
+                    body["title"],
+                    body["servings"],
+                    body["prepTime"],
+                    body["cookTime"],
+                    body["notes"],
+                    recipe_id,
+                ),
+            )
             _replace_ingredients_steps_tags(cur, recipe_id, body["ingredients"], body["steps"], body["tags"])
             row = _fetch_recipe_row_or_404(cur, recipe_id)
             detail = _row_to_detail(cur, row)
@@ -361,19 +457,20 @@ def rate_recipe(recipe_id: str):
 @app.post("/recipes/<recipe_id>/photo")
 def upload_photo(recipe_id: str):
     """Matches API_CONTRACT.md: multipart POST -> { "photoUrl": "string" }.
-    Expects a single "file" field. Author only (not Moderator)."""
+    Expects a single "file" field. Author or Moderator, same as PUT/DELETE."""
     user = require_auth(app)
 
     conn = get_connection()
     with conn.cursor() as cur:
         existing = _fetch_recipe_row_or_404(cur, recipe_id)
-        if str(user["sub"]) != str(existing["author_id"]):
-            raise ForbiddenError("Only the recipe author can upload its photo")
+        require_owner_or_moderator(user, existing["author_id"])
 
     event = app.current_event
     content_type_header = event.headers.get("Content-Type", "") or ""
     if "multipart/form-data" not in content_type_header:
         raise BadRequestError("Expected multipart/form-data with a 'file' field")
+    if not event.body:
+        raise BadRequestError("Missing 'file' field in multipart body")
 
     raw_body = base64.b64decode(event.body) if event.is_base64_encoded else event.body.encode()
     fields = parse_multipart(content_type_header, raw_body)
@@ -402,12 +499,47 @@ def upload_photo(recipe_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Untouched — not in API_CONTRACT.md, not part of this ticket's scope.
+# Saved recipes (issue #78 — previously a no-op stub)
 # ---------------------------------------------------------------------------
 @app.post("/recipes/<recipe_id>/save")
 def save_recipe(recipe_id: str):
-    require_auth(app)
-    return {"recipe_id": int(recipe_id), "saved": True}
+    user = require_auth(app)
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            _fetch_recipe_row_or_404(cur, recipe_id)
+            # INSERT IGNORE: saved_recipe's PK is (user_id, recipe_id) —
+            # re-saving an already-saved recipe is a no-op, not an error.
+            cur.execute(
+                "INSERT IGNORE INTO saved_recipe (user_id, recipe_id) VALUES (%s, %s)",
+                (user["sub"], recipe_id),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return {"recipeId": recipe_id, "saved": True}
+
+
+@app.delete("/recipes/<recipe_id>/save")
+def unsave_recipe(recipe_id: str):
+    user = require_auth(app)
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM saved_recipe WHERE user_id = %s AND recipe_id = %s",
+                (user["sub"], recipe_id),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return Response(status_code=204, content_type="application/json", body="")
 
 
 def lambda_handler(event, context):

@@ -258,6 +258,26 @@ def test_create_recipe_uses_token_sub_as_author(fake_db):
     assert body["authorId"] == "42"
 
 
+def test_create_recipe_persists_servings_prep_cook_notes(fake_db):
+    body = {
+        **VALID_BODY,
+        "servings": "4",
+        "prepTime": "15 min",
+        "cookTime": "30 min",
+        "notes": "Double the garlic.",
+    }
+    result = recipes_app.lambda_handler(
+        make_event("POST", "/recipes", body=body, headers=auth_headers(role="user", sub="42")),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 201
+    created = json.loads(result["body"])
+    assert created["servings"] == "4"
+    assert created["prepTime"] == "15 min"
+    assert created["cookTime"] == "30 min"
+    assert created["notes"] == "Double the garlic."
+
+
 def test_rate_recipe_rejects_missing_token(fake_db):
     result = recipes_app.lambda_handler(
         make_event("POST", f"/recipes/{RECIPE_ID}/ratings", body={"score": 5}),
@@ -299,9 +319,127 @@ def test_upload_photo_rejects_missing_token(fake_db):
     assert result["statusCode"] == 401
 
 
+def test_upload_photo_rejects_non_owner_non_moderator(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event(
+            "POST",
+            f"/recipes/{RECIPE_ID}/photo",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers={
+                "Content-Type": "multipart/form-data; boundary=x",
+                **auth_headers(role="user", sub=OTHER_SUB),
+            },
+        ),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 403
+
+
+def test_upload_photo_allows_moderator_regardless_of_ownership(fake_db):
+    # Moderator clears the ownership check (the thing under test). No real
+    # "file" field is given — per the module comment above, these tests
+    # don't exercise the S3 calls — so it should 400 on the empty multipart
+    # body, not 403 on ownership.
+    event = make_event(
+        "POST",
+        f"/recipes/{RECIPE_ID}/photo",
+        path_params={"recipe_id": str(RECIPE_ID)},
+        headers={
+            "Content-Type": "multipart/form-data; boundary=x",
+            **auth_headers(role="moderator", sub=OTHER_SUB),
+        },
+    )
+    event["body"] = "--x--\r\n"
+    result = recipes_app.lambda_handler(event, FakeContext())
+    assert result["statusCode"] == 400
+
+
+def test_upload_photo_400s_on_missing_body_instead_of_crashing(fake_db):
+    # A multipart Content-Type with no body at all (event.body is None) used
+    # to raise an unhandled AttributeError instead of a clean 400.
+    result = recipes_app.lambda_handler(
+        make_event(
+            "POST",
+            f"/recipes/{RECIPE_ID}/photo",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers={
+                "Content-Type": "multipart/form-data; boundary=x",
+                **auth_headers(role="user", sub=OWNER_SUB),
+            },
+        ),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 400
+
+
 def test_save_recipe_rejects_missing_token(fake_db):
     result = recipes_app.lambda_handler(
         make_event("POST", f"/recipes/{RECIPE_ID}/save", path_params={"recipe_id": str(RECIPE_ID)}),
         FakeContext(),
     )
     assert result["statusCode"] == 401
+
+
+def test_save_recipe_persists_and_is_idempotent(fake_db):
+    event = make_event(
+        "POST",
+        f"/recipes/{RECIPE_ID}/save",
+        path_params={"recipe_id": str(RECIPE_ID)},
+        headers=auth_headers(role="user", sub=OWNER_SUB),
+    )
+    first = recipes_app.lambda_handler(event, FakeContext())
+    second = recipes_app.lambda_handler(event, FakeContext())
+
+    assert first["statusCode"] == 200
+    assert second["statusCode"] == 200
+    assert json.loads(first["body"]) == {"recipeId": str(RECIPE_ID), "saved": True}
+    assert fake_db.saved.count((OWNER_SUB, RECIPE_ID)) == 1
+
+
+def test_save_recipe_404s_for_unknown_recipe(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event(
+            "POST",
+            "/recipes/9999/save",
+            path_params={"recipe_id": "9999"},
+            headers=auth_headers(role="user", sub=OWNER_SUB),
+        ),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 404
+
+
+def test_unsave_recipe_removes_it(fake_db):
+    fake_db.saved.append((OWNER_SUB, RECIPE_ID))
+    result = recipes_app.lambda_handler(
+        make_event(
+            "DELETE",
+            f"/recipes/{RECIPE_ID}/save",
+            path_params={"recipe_id": str(RECIPE_ID)},
+            headers=auth_headers(role="user", sub=OWNER_SUB),
+        ),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 204
+    assert (OWNER_SUB, RECIPE_ID) not in fake_db.saved
+
+
+def test_list_saved_recipes_rejects_missing_token(fake_db):
+    result = recipes_app.lambda_handler(
+        make_event("GET", "/recipes/saved"), FakeContext()
+    )
+    assert result["statusCode"] == 401
+
+
+def test_list_saved_recipes_returns_only_current_users_saves(fake_db):
+    fake_db.seed_recipe(RECIPE_ID + 1, author_id=OTHER_SUB, title="Someone else's")
+    fake_db.saved.append((OWNER_SUB, RECIPE_ID))
+    fake_db.saved.append((OTHER_SUB, RECIPE_ID + 1))
+
+    result = recipes_app.lambda_handler(
+        make_event("GET", "/recipes/saved", headers=auth_headers(role="user", sub=OWNER_SUB)),
+        FakeContext(),
+    )
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert [r["recipeId"] for r in body["recipes"]] == [str(RECIPE_ID)]

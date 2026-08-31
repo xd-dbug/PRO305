@@ -52,7 +52,7 @@ Resources:
         - multipart/form-data
       Cors:
         AllowOrigin: "'http://localhost:5173'"
-        AllowHeaders: "'Content-Type'"
+        AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
 
   SharedLayer:
@@ -179,6 +179,18 @@ Resources:
             RestApiId: !Ref RecipeApi
             Path: "/recipes/{recipe_id}/save"
             Method: post
+        UnsaveRecipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: "/recipes/{recipe_id}/save"
+            Method: delete
+        ListSavedRecipes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RecipeApi
+            Path: /recipes/saved
+            Method: get
         UploadRecipePhoto:
           Type: Api
           Properties:

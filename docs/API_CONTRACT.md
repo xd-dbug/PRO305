@@ -75,7 +75,11 @@ Query params: `?page=1&limit=20&tag=vegetarian`
   "steps": ["string"],
   "photoUrl": "string|null",
   "avgRating": 4.2,
-  "tags": ["vegetarian"]
+  "tags": ["vegetarian"],
+  "servings": "string|null",
+  "prepTime": "string|null",
+  "cookTime": "string|null",
+  "notes": "string|null"
 }
 ```
 
@@ -99,8 +103,29 @@ Response 204. Errors: `403` if not author/Moderator.
 { "recipeId": "string", "avgRating": 4.3 }
 ```
 
-### POST /recipes/{recipeId}/photo  *(auth required, author only)*
+### POST /recipes/{recipeId}/photo  *(auth required, author or Moderator only)*
 Multipart upload → S3. Response 200: `{ "photoUrl": "string" }`
+
+### POST /recipes/{recipeId}/save  *(auth required)*
+Saves the recipe to the current user's saved list. Idempotent — saving an
+already-saved recipe is a no-op, not an error.
+```json
+// Response 200
+{ "recipeId": "string", "saved": true }
+```
+Errors: `404` if the recipe doesn't exist.
+
+### DELETE /recipes/{recipeId}/save  *(auth required)*
+Removes the recipe from the current user's saved list. Response 204,
+whether or not it was previously saved.
+
+### GET /recipes/saved  *(auth required)*
+The current user's saved recipes, newest-saved first. Same shape and
+pagination as `GET /recipes`.
+```json
+// Response 200
+{ "recipes": [ { "recipeId": "string", "title": "string", "photoUrl": "string|null", "avgRating": 4.2, "authorId": "string" } ], "page": 1, "totalPages": 1 }
+```
 
 ---
 

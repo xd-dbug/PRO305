@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS recipes (
     title VARCHAR(255) NOT NULL,
     author_id INT NOT NULL,
     photo_url VARCHAR(512),
+    servings VARCHAR(50),
+    prep_time VARCHAR(50),
+    cook_time VARCHAR(50),
+    notes TEXT,
     rating_avg DECIMAL(3,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (author_id) REFERENCES users(id)

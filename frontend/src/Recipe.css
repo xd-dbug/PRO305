@@ -81,7 +81,7 @@
   font-size: 13px;
 }
 
-/* Edit/delete controls, shown only to the recipe's author */
+/* Edit/delete controls, shown to the recipe's author or a Moderator */
 .author-actions {
   display: flex;
   align-items: center;
@@ -257,6 +257,59 @@
 .photo-box-placeholder {
   font-size: 48px;
   padding: 40px 0;
+}
+
+/* Upload/replace control, shown to the recipe's author or a Moderator */
+.photo-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.photo-upload-btn {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  display: inline-block;
+}
+.photo-upload-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Save/unsave toggle, shown to any logged-in user */
+.save-button-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.save-btn {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.save-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.save-btn.saved {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .state-message {

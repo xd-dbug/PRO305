@@ -2,6 +2,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:3000
 
 const TOKEN_KEY = "authToken";
 const USER_ID_KEY = "authUserId";
+const ROLE_KEY = "authRole";
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -24,6 +25,18 @@ export function setUserId(userId) {
     localStorage.setItem(USER_ID_KEY, userId);
   } else {
     localStorage.removeItem(USER_ID_KEY);
+  }
+}
+
+export function getRole() {
+  return localStorage.getItem(ROLE_KEY);
+}
+
+export function setRole(role) {
+  if (role) {
+    localStorage.setItem(ROLE_KEY, role);
+  } else {
+    localStorage.removeItem(ROLE_KEY);
   }
 }
 
@@ -68,13 +81,17 @@ export function friendlyApiErrorMessage(err, overrides = {}) {
 
 async function request(path, options = {}) {
   const token = getToken();
+  // FormData bodies (photo upload) need the browser to set its own
+  // multipart/form-data Content-Type with a boundary — setting it ourselves
+  // would omit the boundary and break parsing server-side.
+  const isFormData = options.body instanceof FormData;
 
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
@@ -124,6 +141,13 @@ export function deleteRecipe(recipeId) {
   return request(`recipes/${recipeId}`, { method: "DELETE" });
 }
 
+// Contract: POST /recipes/{recipeId}/photo  multipart "file" field -> { photoUrl }
+export function uploadRecipePhoto(recipeId, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(`recipes/${recipeId}/photo`, { method: "POST", body: formData });
+}
+
 // Contract: POST /recipes/{recipeId}/ratings  { "score": number } -> { recipeId, avgRating }
 export function rateRecipe(recipeId, score) {
   return request(`recipes/${recipeId}/ratings`, {
@@ -132,12 +156,22 @@ export function rateRecipe(recipeId, score) {
   });
 }
 
-// NOT in API_CONTRACT.md — there is no "save/bookmark a recipe" route defined for
-// Person A's Recipes API yet. Left here so nothing that already calls it breaks,
-// but it will 404 against the mock/real API until the contract is updated and
-// signed off. Flag this to Person A before relying on it.
+// Contract: POST /recipes/{recipeId}/save -> { recipeId, saved: true }. Idempotent.
 export function saveRecipe(recipeId) {
   return request(`recipes/${recipeId}/save`, { method: "POST" });
+}
+
+// Contract: DELETE /recipes/{recipeId}/save -> 204
+export function unsaveRecipe(recipeId) {
+  return request(`recipes/${recipeId}/save`, { method: "DELETE" });
+}
+
+// Contract: GET /recipes/saved?page=&limit= -> same shape as GET /recipes
+export function listSavedRecipes({ page = 1, limit = 20 } = {}) {
+  const params = new URLSearchParams();
+  params.set("page", page);
+  params.set("limit", limit);
+  return request(`recipes/saved?${params.toString()}`);
 }
 
 export function register(email, password, displayName) {
@@ -154,6 +188,7 @@ export async function login(email, password) {
   });
   setToken(res.token);
   setUserId(res.userId);
+  setRole(res.role);
   return res;
 }
 
@@ -168,4 +203,17 @@ export function generateMealPlan(preferences) {
 // Contract: GET /mealplan/status/{jobId} -> { jobId, status, mealPlan }
 export function getMealPlanStatus(jobId) {
   return request(`mealplan/status/${jobId}`);
+}
+
+// Contract: GET /users/me/preferences -> { dietaryTags: string[] }
+export function getPreferences() {
+  return request("users/me/preferences");
+}
+
+// Contract: PUT /users/me/preferences  { dietaryTags: string[] } -> same shape as GET. Full replace.
+export function updatePreferences(dietaryTags) {
+  return request("users/me/preferences", {
+    method: "PUT",
+    body: JSON.stringify({ dietaryTags }),
+  });
 }

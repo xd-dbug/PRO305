@@ -54,6 +54,11 @@ function Homepage() {
               <h2>Add a recipe</h2>
               <p>Save one of your own.</p>
             </Link>
+            <Link to="/saved" className="dashboard-tile">
+              <span className="tile-icon" aria-hidden="true">🔖</span>
+              <h2>Saved recipes</h2>
+              <p>Your bookmarked favorites.</p>
+            </Link>
             <Link to="/mealplan" className="dashboard-tile">
               <span className="tile-icon" aria-hidden="true">🗓️</span>
               <h2>Plan meals</h2>

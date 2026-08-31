@@ -1,6 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { deleteRecipe, getRecipe, getUserId, rateRecipe, getToken } from "./api/client";
+import {
+  deleteRecipe,
+  getRecipe,
+  getRole,
+  getUserId,
+  rateRecipe,
+  getToken,
+  saveRecipe,
+  unsaveRecipe,
+  uploadRecipePhoto,
+} from "./api/client";
 import "./Recipe.css";
 
 function AuthorActions({ recipeId }) {
@@ -102,6 +112,88 @@ function RatingWidget({ recipeId, onRated }) {
   );
 }
 
+function SaveButton({ recipeId }) {
+  const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState("idle"); // idle | working | error
+  const [error, setError] = useState(null);
+
+  if (!getToken()) {
+    return null;
+  }
+
+  async function toggleSaved() {
+    setStatus("working");
+    setError(null);
+    try {
+      if (saved) {
+        await unsaveRecipe(recipeId);
+        setSaved(false);
+      } else {
+        await saveRecipe(recipeId);
+        setSaved(true);
+      }
+      setStatus("idle");
+    } catch (err) {
+      setError(err.message);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="save-button-wrap">
+      <button
+        type="button"
+        className={`save-btn${saved ? " saved" : ""}`}
+        onClick={toggleSaved}
+        disabled={status === "working"}
+      >
+        {saved ? "🔖 Saved" : "🔖 Save recipe"}
+      </button>
+      {status === "error" && <span className="rating-widget-status error">{error}</span>}
+    </div>
+  );
+}
+
+function PhotoUpload({ recipeId, hasPhoto, onUploaded }) {
+  const inputRef = useRef(null);
+  const [status, setStatus] = useState("idle"); // idle | uploading | error
+  const [error, setError] = useState(null);
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setStatus("uploading");
+    setError(null);
+    try {
+      const res = await uploadRecipePhoto(recipeId, file);
+      onUploaded(res.photoUrl);
+      setStatus("idle");
+    } catch (err) {
+      setError(err.message);
+      setStatus("error");
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="photo-upload">
+      <label className="photo-upload-btn">
+        {status === "uploading" ? "Uploading…" : hasPhoto ? "Replace photo" : "Upload photo"}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleFileChange}
+          disabled={status === "uploading"}
+          hidden
+        />
+      </label>
+      {status === "error" && <span className="rating-widget-status error">{error}</span>}
+    </div>
+  );
+}
+
 function Recipe() {
   const { recipeId } = useParams();
   const [recipe, setRecipe] = useState(null);
@@ -131,6 +223,10 @@ function Recipe() {
     setRecipe((prev) => (prev ? { ...prev, avgRating: newAvgRating } : prev));
   }
 
+  function handlePhotoUploaded(newPhotoUrl) {
+    setRecipe((prev) => (prev ? { ...prev, photoUrl: newPhotoUrl } : prev));
+  }
+
   if (status === "loading") {
     return (
       <div className="recipe-page">
@@ -151,6 +247,8 @@ function Recipe() {
       </div>
     );
   }
+
+  const canModerate = recipe.authorId === getUserId() || getRole() === "moderator";
 
   return (
     <div className="recipe-page">
@@ -173,13 +271,12 @@ function Recipe() {
               </ul>
             )}
             <RatingWidget recipeId={recipeId} onRated={handleRated} />
+            <SaveButton recipeId={recipeId} />
           </div>
         </header>
 
-        {recipe.authorId === getUserId() && <AuthorActions recipeId={recipeId} />}
+        {canModerate && <AuthorActions recipeId={recipeId} />}
 
-        {/* servings/prepTime/cookTime aren't in API_CONTRACT.md yet — they'll
-            show as "—" until Person A adds them to the recipe schema. */}
         <div className="recipe-meta-row">
           <div className="meta-item">
             <span className="meta-label">Servings</span>
@@ -209,7 +306,6 @@ function Recipe() {
               </ul>
             </section>
 
-            {/* notes isn't in API_CONTRACT.md yet either — see comment above. */}
             <section className="recipe-box notes-box">
               <h2>Notes</h2>
               <p className="notes-text">{recipe.notes || "No notes yet."}</p>
@@ -235,6 +331,13 @@ function Recipe() {
                 </div>
               )}
             </section>
+            {canModerate && (
+              <PhotoUpload
+                recipeId={recipeId}
+                hasPhoto={Boolean(recipe.photoUrl)}
+                onUploaded={handlePhotoUploaded}
+              />
+            )}
           </div>
         </div>
       </article>

@@ -21,6 +21,7 @@ class FakeDB:
         self.tags = {}
         self.recipe_tags = []
         self.ratings = {}
+        self.saved = []  # ordered list of (user_id, recipe_id) tuples, save order
         self._next_id = 1
         self._next_tag_id = 1
 
@@ -31,6 +32,10 @@ class FakeDB:
             "author_id": str(author_id),
             "rating_avg": None,
             "photo_url": None,
+            "servings": None,
+            "prep_time": None,
+            "cook_time": None,
+            "notes": None,
         }
         self._next_id = max(self._next_id, int(recipe_id) + 1)
 
@@ -56,21 +61,31 @@ class FakeCursor:
             row = db.recipes.get(int(params[0]))
             self._rows = [dict(row)] if row else []
 
-        elif normalized.startswith("INSERT INTO recipes (title, author_id)"):
+        elif normalized.startswith("INSERT INTO recipes (title, author_id, servings, prep_time, cook_time, notes)"):
             new_id = db._next_id
             db._next_id += 1
+            title, author_id, servings, prep_time, cook_time, notes = params
             db.recipes[new_id] = {
                 "id": new_id,
-                "title": params[0],
-                "author_id": str(params[1]),
+                "title": title,
+                "author_id": str(author_id),
                 "rating_avg": None,
                 "photo_url": None,
+                "servings": servings,
+                "prep_time": prep_time,
+                "cook_time": cook_time,
+                "notes": notes,
             }
             self.lastrowid = new_id
 
         elif normalized.startswith("UPDATE recipes SET title"):
-            title, recipe_id = params
-            db.recipes[int(recipe_id)]["title"] = title
+            title, servings, prep_time, cook_time, notes, recipe_id = params
+            row = db.recipes[int(recipe_id)]
+            row["title"] = title
+            row["servings"] = servings
+            row["prep_time"] = prep_time
+            row["cook_time"] = cook_time
+            row["notes"] = notes
 
         elif normalized.startswith("UPDATE recipes SET rating_avg"):
             avg_score, recipe_id = params
@@ -143,6 +158,24 @@ class FakeCursor:
 
         elif normalized.startswith("SELECT COUNT(*) AS total FROM recipes"):
             self._rows = [{"total": len(db.recipes)}]
+
+        elif normalized.startswith("SELECT COUNT(*) AS total FROM saved_recipe"):
+            user_id = str(params[0])
+            self._rows = [{"total": sum(1 for uid, _rid in db.saved if uid == user_id)}]
+
+        elif "JOIN saved_recipe sr" in normalized:
+            user_id = str(params[0])
+            saved_ids = [rid for uid, rid in reversed(db.saved) if uid == user_id]
+            self._rows = [dict(db.recipes[rid]) for rid in saved_ids if rid in db.recipes]
+
+        elif normalized.startswith("INSERT IGNORE INTO saved_recipe"):
+            user_id, recipe_id = str(params[0]), int(params[1])
+            if (user_id, recipe_id) not in db.saved:
+                db.saved.append((user_id, recipe_id))
+
+        elif normalized.startswith("DELETE FROM saved_recipe"):
+            user_id, recipe_id = str(params[0]), int(params[1])
+            db.saved = [(uid, rid) for uid, rid in db.saved if (uid, rid) != (user_id, recipe_id)]
 
         else:
             raise AssertionError(f"FakeCursor got an unexpected statement: {normalized!r}")

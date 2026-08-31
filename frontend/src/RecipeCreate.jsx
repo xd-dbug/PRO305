@@ -83,9 +83,6 @@ function RecipeCreate() {
     setError(null);
 
     // Shape matches the contract: same body as GET /recipes/{id} minus recipeId/avgRating.
-    // servings/prepTime/cookTime/notes are NOT in API_CONTRACT.md yet — sending
-    // them is harmless (most APIs ignore unknown fields) but they won't persist
-    // until Person A adds them to the recipe schema and it's re-signed-off.
     const payload = {
       title: title.trim(),
       servings: servings.trim() || undefined,

@@ -6,6 +6,7 @@ import Register from "./Register.jsx";
 import Homepage from "./Homepage.jsx";
 import Browser from "./Browser.jsx";
 import RecipeList from "./RecipeList.jsx";
+import SavedRecipes from "./SavedRecipes.jsx";
 import Recipe from "./Recipe.jsx";
 import RecipeCreate from "./RecipeCreate.jsx";
 import MealPlan from "./MealPlan.jsx";
@@ -23,6 +24,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/browser" element={<Browser />} />
         <Route path="/recipes" element={<RecipeList />} />
+        <Route path="/saved" element={<SavedRecipes />} />
         <Route path="/recipes/new" element={<RecipeCreate />} />
         <Route path="/recipes/:recipeId" element={<Recipe />} />
         <Route path="/recipes/:recipeId/edit" element={<RecipeCreate />} />
