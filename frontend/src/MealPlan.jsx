@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   generateMealPlan,
   getMealPlanStatus,
@@ -19,6 +20,7 @@ function parseDietaryTags(input) {
 }
 
 function MealPlan() {
+  const navigate = useNavigate();
   const [days, setDays] = useState(7);
   const [mealsPerDay, setMealsPerDay] = useState(3);
   const [dietaryTagsInput, setDietaryTagsInput] = useState("");
@@ -126,6 +128,24 @@ function MealPlan() {
     }
   }
 
+  // Hands off to RecipeCreate pre-filled with everything Claude generated
+  // (see backend/mealplan/app.py's build_prompt) rather than posting
+  // straight to POST /recipes, so the user can review/tweak before it's
+  // actually saved.
+  function handleSaveAsRecipe(meal) {
+    navigate("/recipes/new", {
+      state: {
+        title: meal.name,
+        notes: meal.notes || "",
+        servings: meal.servings || "",
+        prepTime: meal.prepTime || "",
+        cookTime: meal.cookTime || "",
+        ingredients: meal.ingredients || [],
+        steps: meal.steps || [],
+      },
+    });
+  }
+
   function handleReset() {
     activeJobIdRef.current = null;
     clearTimers();
@@ -224,8 +244,51 @@ function MealPlan() {
               <ul>
                 {day.meals.map((meal, i) => (
                   <li key={i}>
-                    <span className="meal-name">{meal.name}</span>
-                    {meal.notes && <span className="meal-notes">{meal.notes}</span>}
+                    <div className="meal-row">
+                      <div className="meal-info">
+                        <span className="meal-name">{meal.name}</span>
+                        {meal.notes && <span className="meal-notes">{meal.notes}</span>}
+                        {(meal.servings || meal.prepTime || meal.cookTime) && (
+                          <span className="meal-meta">
+                            {[
+                              meal.servings && `Serves ${meal.servings}`,
+                              meal.prepTime && `Prep ${meal.prepTime}`,
+                              meal.cookTime && `Cook ${meal.cookTime}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="save-as-recipe-btn"
+                        onClick={() => handleSaveAsRecipe(meal)}
+                      >
+                        Save as recipe
+                      </button>
+                    </div>
+                    {(meal.ingredients?.length > 0 || meal.steps?.length > 0) && (
+                      <details className="meal-details">
+                        <summary>Ingredients &amp; steps</summary>
+                        {meal.ingredients?.length > 0 && (
+                          <ul className="meal-ingredients">
+                            {meal.ingredients.map((ing, j) => (
+                              <li key={j}>
+                                {ing.amount} {ing.name}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {meal.steps?.length > 0 && (
+                          <ol className="meal-steps">
+                            {meal.steps.map((step, j) => (
+                              <li key={j}>{step}</li>
+                            ))}
+                          </ol>
+                        )}
+                      </details>
+                    )}
                   </li>
                 ))}
               </ul>

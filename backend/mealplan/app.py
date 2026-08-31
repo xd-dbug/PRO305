@@ -35,9 +35,15 @@ def build_prompt(preferences: dict, dietary_tags: list[str], saved_recipes: list
         "Respond with ONLY valid JSON (no markdown fences, no commentary) in exactly "
         "this shape:\n"
         '{"days": [{"day": 1, "meals": [{"recipeId": null, "name": "string", '
-        '"notes": "string"}]}]}\n'
+        '"notes": "string", "servings": "string", "prepTime": "string", '
+        '"cookTime": "string", "ingredients": [{"name": "string", "amount": "string"}], '
+        '"steps": ["string"]}]}]}\n'
         f'There must be exactly {days} entries in "days", each with exactly '
-        f'{meals_per_day} entries in "meals". "recipeId" is always null.'
+        f'{meals_per_day} entries in "meals". "recipeId" is always null. Each meal must '
+        "be a complete, cookable recipe: \"ingredients\" and \"steps\" must each be "
+        "non-empty, with realistic amounts (e.g. \"2 cups\") and clear, ordered "
+        'steps. "servings", "prepTime" (e.g. "15 min"), and "cookTime" (e.g. '
+        '"30 min") must all be filled in, never blank.'
     )
 
 

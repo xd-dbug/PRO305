@@ -147,9 +147,17 @@ Frontend polls this.
 { "jobId": "string", "status": "pending | complete | failed", "mealPlan": null }
 // when complete:
 { "jobId": "string", "status": "complete", "mealPlan": {
-    "days": [ { "day": 1, "meals": [ { "recipeId": "string|null", "name": "string", "notes": "string" } ] } ]
+    "days": [ { "day": 1, "meals": [ {
+      "recipeId": "string|null", "name": "string", "notes": "string",
+      "servings": "string", "prepTime": "string", "cookTime": "string",
+      "ingredients": [ { "name": "string", "amount": "string" } ],
+      "steps": ["string"]
+    } ] } ]
 } }
 ```
+Each generated meal is a full recipe (not just a name) so it can be handed
+straight to `POST /recipes`'s body shape via the frontend's "Save as recipe"
+button (`MealPlan.jsx` → `RecipeCreate.jsx` pre-fill).
 Polling interval: frontend should poll every 3–5s, stop after `failed` or `complete`, cap at ~2 min before showing a timeout state.
 
 ---

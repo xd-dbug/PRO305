@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { createRecipe, getRecipe, getToken, getUserId, updateRecipe, friendlyApiErrorMessage } from "./api/client";
 import "./RecipeCreate.css";
 
@@ -7,18 +7,24 @@ const emptyIngredient = () => ({ name: "", amount: "" });
 
 function RecipeCreate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { recipeId } = useParams();
   const isEditMode = Boolean(recipeId);
   const isAuthed = Boolean(getToken());
+  // Pre-fill from a generated meal-plan entry (see MealPlan.jsx's "Save as
+  // recipe" button) — only relevant in create mode, ignored on edit.
+  const prefill = !isEditMode ? location.state : null;
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(prefill?.title || "");
   const [tagsInput, setTagsInput] = useState("");
-  const [servings, setServings] = useState("");
-  const [prepTime, setPrepTime] = useState("");
-  const [cookTime, setCookTime] = useState("");
-  const [notes, setNotes] = useState("");
-  const [ingredients, setIngredients] = useState([emptyIngredient()]);
-  const [steps, setSteps] = useState([""]);
+  const [servings, setServings] = useState(prefill?.servings || "");
+  const [prepTime, setPrepTime] = useState(prefill?.prepTime || "");
+  const [cookTime, setCookTime] = useState(prefill?.cookTime || "");
+  const [notes, setNotes] = useState(prefill?.notes || "");
+  const [ingredients, setIngredients] = useState(
+    prefill?.ingredients?.length ? prefill.ingredients : [emptyIngredient()]
+  );
+  const [steps, setSteps] = useState(prefill?.steps?.length ? prefill.steps : [""]);
   const [status, setStatus] = useState(isEditMode ? "loading" : "idle"); // loading | idle | saving | error
   const [error, setError] = useState(null);
   const [forbidden, setForbidden] = useState(false);
