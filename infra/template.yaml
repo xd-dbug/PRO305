@@ -208,7 +208,10 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: recipe-sharing-mealplan-queue
-      VisibilityTimeout: 60
+      # Must comfortably exceed MealplanFunction's Timeout (90s) so a
+      # slow-but-succeeding invocation can't become visible again and get
+      # redelivered as a duplicate mid-flight.
+      VisibilityTimeout: 120
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt MealplanDLQ.Arn
         maxReceiveCount: 3
@@ -250,6 +253,9 @@ Resources:
       # scales with memory, so 128MB slows the outbound call and increases
       # timeout risk.
       MemorySize: 256
+      # Overrides the global 10s default (see #79) — a large plan (7 days x
+      # 3 meals/day) can take longer than 10s for Claude to generate.
+      Timeout: 90
       Layers:
         - !Ref SharedLayer
       Events:
