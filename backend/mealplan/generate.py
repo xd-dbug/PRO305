@@ -22,7 +22,15 @@ def _validate_preferences(body: dict) -> dict:
         raise BadRequestError("preferences.days must be a positive integer")
     if not isinstance(meals_per_day, int) or meals_per_day <= 0:
         raise BadRequestError("preferences.mealsPerDay must be a positive integer")
-    return {"days": days, "mealsPerDay": meals_per_day}
+    result = {"days": days, "mealsPerDay": meals_per_day}
+
+    force_failure = preferences.get("forceFailure")
+    if force_failure is not None:
+        if not isinstance(force_failure, bool):
+            raise BadRequestError("preferences.forceFailure must be a boolean")
+        result["forceFailure"] = force_failure
+
+    return result
 
 
 @app.post("/mealplan/generate")

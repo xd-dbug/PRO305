@@ -82,6 +82,12 @@ def _process_record(record):
             with conn.cursor() as cursor:
                 user_id, preferences = _fetch_job(cursor, job_id)
 
+            if preferences.get("forceFailure"):
+                raise RuntimeError(
+                    "Forced failure requested via preferences.forceFailure "
+                    "(demo fault injection, no Claude call made)"
+                )
+
             dietary_tags = get_dietary_tags(conn, user_id)
             saved_recipes = get_saved_recipes(conn, user_id)
 

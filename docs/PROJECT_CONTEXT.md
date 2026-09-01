@@ -2,10 +2,11 @@
 
 Originally written by Claude Code while scaffolding the Week 1 seed issues from
 `docs/BOARD_SETUP.md`; rewritten from a full re-read of the repo + GitHub issues/PRs on
-2026-08-16, most recently updated 2026-08-17 after the stack's first real deploy
-(commit `d21abb9` + uncommitted mealplan/infra work). Read this first if you're picking
-up work in this repo without prior context — this file drifts fast in an active Week 2,
-so re-verify anything load-bearing against the code before relying on it.
+2026-08-16, and rewritten again on 2026-09-01 during Week 4 (hardening/demo prep) —
+the Week 2 version was badly stale by then (e.g. it described the frontend as
+"essentially unstarted," which was no longer true). Read this first if you're picking up
+work in this repo without prior context — this file still drifts fast in an active
+project, so re-verify anything load-bearing against the code before relying on it.
 
 ## What this project is
 
@@ -15,135 +16,83 @@ git history — Damian, LissAponte, nscarbrough — plus "you," the mealplan/AI 
 responsible for a track. See `README.md` for the full architecture and
 `docs/BOARD_SETUP.md` for the board/issue setup.
 
-## Where things actually stand
+## Where things actually stand (Week 4, 2026-09-01)
 
-- **The stack is deployed for real now** — first-ever `sam deploy` of this project,
-  2026-08-17, stack `recipe-sharing-app` in `us-east-2`. `ApiUrl`:
-  `https://yat192qddb.execute-api.us-east-2.amazonaws.com/dev/`. Schema applied by hand
-  (`mysql ... < backend/{auth,recipes,mealplan}/schema.sql`, in that dependency order)
-  and `backend/auth/seed.py` run against the live DB — two test users exist:
-  `alice@example.com` (`user`) and `mod@example.com` (`moderator`), both
-  `<name>-test-password`. `infra/samconfig.toml` now exists (gitignored, no secrets in
-  it — `NoEcho` params aren't persisted there).
+- **The stack has been live since Week 2** and has been through several rounds of
+  hardening since. Stack `recipe-sharing-app`, `us-east-2`. Schema applied by hand
+  (`mysql ... < backend/{auth,recipes,mealplan}/schema.sql`) and `backend/auth/seed.py`
+  run against the live DB — `alice@example.com` (`user`) and `mod@example.com`
+  (`moderator`) both exist, `<name>-test-password`. See `infra/README.md` for deploy
+  mechanics and current state; that file is kept up to date operationally and is more
+  reliable than this one for infra specifics.
 - **`RecipeDB` is `PubliclyAccessible: true`, not `false` — a deliberate, discussed
-  tradeoff, not an oversight.** No Lambda in this stack has `VpcConfig`. Giving them
-  VPC networking to reach RDS privately would cut off `MealplanFunction`'s internet
-  access (needed for the Claude API call) unless a NAT Gateway got added
-  (~$33/month + data, ongoing cost for a course project). Chose: RDS gets its own
-  dedicated `RecipeDbSecurityGroup` (0.0.0.0/0 on 3306, not the account's shared
-  default SG — this VPC has other unrelated projects in it), protection is the DB
-  password alone. Revisit if this ever needs to be production-real.
-- **`master` is the integration branch** (not `main` — `CONTRIBUTING.md` says `main` but
-  the repo actually uses `master`; go with what's real). Latest merged work: PR #29
-  (role casing fix, closes #28), PR #27 (auth enforcement, closes #7), and
-  `nscarbrough`'s Week 2 recipes/S3 commit.
-- **In-flight branches/worktrees as of this write-up:**
-  - `feature/damian-mealplan-generate-persist` (issue #2, this repo's main checkout) —
-    **all 4 tasks done**, deployed, and verified end-to-end against the real stack (see
-    Mealplan status below) — still uncommitted, ready for commit/PR.
-  - `.worktrees/cloudwatch-alarm-thresholds` (issue #11, branch
-    `feature/damian-infra-cloudwatch-thresholds`) — Task 1 (real alarm descriptions)
-    done, uncommitted. Deploy + forced-alarm verification still pending — note it's
-    working off a stale copy of `infra/template.yaml` from before the `RecipeDB`
-    public-access change above; rebase/re-pull before deploying from that worktree.
-  - `.worktrees/auth-jwt-middleware` (branch `feature/damian-auth-jwt-middleware`) —
-    this branch's PR (#27) is already merged into `master`; the worktree itself is
-    stale and can be removed whenever convenient.
-  - Several older local branches (`feature/damain-infra_issue`,
-    `feature/damain-mealplan_issues`, `feature/damian-mealplan-sqs-consumer`) are fully
-    merged/stale — safe cleanup candidates, not touched here.
+  tradeoff, not an oversight**, and now also has `DeletionProtection: true`. No Lambda
+  in this stack has `VpcConfig` (see `infra/README.md`'s "Current state" section for the
+  full rationale — giving Lambdas VPC networking would cut `MealplanFunction`'s internet
+  access to the Claude API without adding a NAT Gateway).
+- **`master` is the integration branch** (not `main` — go with what's real; see the
+  "Branching" section fix in `README.md`, which used to say `main`).
+- **A dozen `.worktrees/*` directories and their branches are stale** — all already
+  merged to `master`, left over from earlier Week 3 work-in-progress. Safe cleanup
+  candidates (`git worktree remove` + `git branch -d`) whenever someone wants to do the
+  housekeeping; not touched as part of this doc sweep since deleting branches wasn't
+  in scope here.
+- **All 4 original tracks (recipes, auth, mealplan/AI, infra/frontend) are functionally
+  complete** — every Week 1–3 milestone issue and all but a handful of Week 4 hardening
+  issues are closed. See `docs/CONTRACT_MISMATCH_LOG.md` for the specific frontend/
+  backend/contract mismatches that surfaced during Week 3 integration and how each was
+  fixed.
 
 ## Status per track
 
-- **Infra:** `infra/template.yaml` defines API Gateway (now with `BinaryMediaTypes` for
-  multipart photo uploads), RDS (now public — see above), the S3 photo bucket, SNS,
-  `MealplanQueue`, and 4 CloudWatch alarms. `Api5xxRateAlarm`/`ApiP95LatencyAlarm` have
-  real descriptions now (issue #11, Task 1) but still need a deploy + forced-transition
-  check to close the issue — now that the stack is actually live, this is unblocked.
-  `MealplanDlqFailureRateAlarm` still points at a DLQ that doesn't exist (issue #3).
-  `infra/README.md`'s "no `VpcConfig`" gap is superseded by the public-RDS decision
-  above — no Lambda needs `VpcConfig` now. Still open: no `AlarmTopic` subscription
-  (alarms notify nobody even once firing).
-- **Auth:** `users` table (lowercase `role` enum: `'user'`/`'moderator'`),
-  `POST /auth/login` issuing real JWTs — all from Week 1. Week 2 added
-  `backend/layer/shared/auth_middleware.py` (issue #7, PR #27): `require_auth`,
-  `require_role`, `require_owner_or_moderator`, correctly checking the lowercase role
-  enum, well-tested (`backend/layer/tests/test_auth_middleware.py`). Issues #8
-  (moderator permissions) and #9 (dietary preference tags CRUD) are still open — #9 is
-  what blocks issue #1's dietary-tag prompting.
-- **Recipes:** Full DB-backed CRUD, ratings (`POST /recipes/{id}/ratings` — note the
-  route was renamed from `/rate` to `/ratings`, but `frontend/src/api/client.js` still
-  calls the old `/rate` path), S3 photo upload (`s3utils.py`, `multipart_utils.py`).
-  Auth is functional now (issue #28 fixed, PR #29) but still **inconsistent** — see
-  Known bugs below: two separate auth implementations (`token_auth.py` and
-  `shared.auth_middleware`) both work now, but only one route uses the shared one.
-- **Frontend:** Still essentially unstarted despite looking otherwise. `App.jsx` (27
-  lines) and `main.jsx` only; `Browser.jsx`, `Homepage.jsx`, `Login.jsx`, `Recipe.jsx`,
-  `RecipeList.jsx`, `Register.jsx` all exist as 0-line empty files (CSS + filenames
-  scaffolded, no content) — this is what issues #12/#13 (still open) are for.
-  `src/api/client.js` is wired up but has drifted from the real API (see the
-  `/rate`-vs-`/ratings` mismatch above).
-- **Mealplan/AI (you):** `mealplan_job` schema in place (issue #10, closed). **Issue #2
-  is fully done and verified against the real deployed stack** (this session):
-  `generate.py` (`POST /mealplan/generate`, auth via `shared.auth_middleware`) inserts
-  the `pending` row and enqueues SQS; the rewritten consumer (`app.py`) fetches
-  `request_preferences`, calls Claude with a minimal prompt (days/mealsPerDay only —
-  no dietary tags/saved recipes, that's #1), and writes `status='complete'` +
-  `generated_plan` (or `status='failed'` + `error_message` on any exception, re-raising
-  so #3's DLQ can still act on it). Live test: `curl POST /mealplan/generate` → `202`,
-  `SELECT * FROM mealplan_job` a few seconds later showed `status='complete'` with a
-  real Claude-generated 2-day plan in the documented shape. Issue #1 (dietary-tag/
-  saved-recipe-aware prompting) still blocked on #9. Issue #3 (DLQ wiring) not started
-  — its "job status reflects failed" verification step is unblocked now that #2's
-  consumer exists and is deployed.
+- **Infra:** `infra/template.yaml` defines API Gateway (`BinaryMediaTypes` for multipart
+  photo uploads), public RDS, the S3 photo bucket, SNS with a live email subscription,
+  `MealplanQueue` + `MealplanDLQ` (redrive after 3 attempts), and all 4 CloudWatch
+  alarms with real thresholds and descriptions — see `infra/README.md`'s "Current
+  state" section, which is the authoritative source for this track now. Log retention
+  is set operationally (not CFN-managed — see that file for why).
+- **Auth:** `users` table (lowercase `role` enum), `POST /auth/register` and
+  `POST /auth/login` both implemented and returning `userId`/`role` per the contract,
+  `GET`/`PUT /users/me/preferences` for dietary tags (issue #9). Role enforcement
+  (issue #8) fixed and consistent — `backend/recipes/app.py` is fully migrated onto the
+  shared `backend/layer/shared/auth_middleware.py` (`require_auth`,
+  `require_owner_or_moderator`); the old recipes-local `token_auth.py` no longer exists.
+  Photo upload uses the same `require_owner_or_moderator` check as PUT/DELETE (issue
+  #71). Frontend now stores `role` from login so moderator-only UI actually shows for a
+  moderator viewing someone else's recipe.
+- **Recipes:** Full DB-backed CRUD, ratings at `POST /recipes/{id}/ratings` (frontend
+  and backend agree on `/ratings`, not `/rate` — the old mismatch is gone), S3 photo
+  upload (`backend/recipes/s3_utils.py` — correctly named, no more `s3utils.py`
+  mismatch), saved recipes (`saved_recipe` table, `POST`/`DELETE /recipes/{id}/save`,
+  `GET /recipes/saved`, issue #78), `avgRating` returns `null` (not `0`) when unrated.
+  `servings`/`prepTime`/`cookTime`/`notes` are collected end-to-end, not silently
+  dropped.
+- **Frontend:** Real UI behind every route — `Browser.jsx`, `Homepage.jsx`,
+  `Login.jsx`/`Register.jsx`, `Recipe.jsx`, `RecipeList.jsx`, `RecipeCreate.jsx`,
+  `MealPlan.jsx`, `SavedRecipes.jsx`, `Nav.jsx`, `NotFound.jsx`, plus a global
+  `ErrorBoundary.jsx`. `MealPlan.jsx` collects dietary preferences (issue #77) and has a
+  "Save as recipe" flow that pre-fills `RecipeCreate.jsx` from a generated meal.
+- **Mealplan/AI:** `POST /mealplan/generate` enqueues to SQS and returns immediately;
+  the consumer (physically `backend/mealplan/app.py` — see the naming note in
+  `infra/README.md`) builds its prompt from live dietary tags and saved recipes (issue
+  #1), asks Claude for a full cookable recipe per meal (not just a name), and writes
+  `status='complete'` + `generated_plan`, or `status='failed'` + `error_message` on any
+  exception (re-raising so the DLQ can act on it). `MealplanFunction`'s timeout is 90s
+  (bumped from the 10s default, issue #79) to give a large 7-day×3-meal plan room to
+  generate. A demo-safe fault-injection flag (`preferences.forceFailure`) now exists for
+  rehearsing the DLQ/alarm path on demand — see `infra/README.md`.
 
 ## Known bugs worth knowing about
 
-1. **Auth casing bug — GitHub issue #28, fixed (PR #29, merged).**
-   `backend/recipes/token_auth.py`'s `get_current_user()` used to check
-   `role not in ("User", "Moderator")` (capitalized) against a lowercase
-   `'user'`/`'moderator'` enum, 401ing every real JWT on recipe write routes.
-   PR #29 fixed the casing in both `get_current_user()` and
-   `require_owner_or_moderator()` — a minimal 4-line patch, explicitly scoped to just
-   the casing (see the PR body). It deliberately did **not**:
-   - migrate recipe routes to `shared.auth_middleware` (the issue's own "worth
-     considering" suggestion) — `token_auth.py` and `shared.auth_middleware` remain
-     two parallel, now-both-correct implementations. `backend/recipes/app.py:29-33`
-     still imports `require_owner_or_moderator` from *both* modules (the second import
-     silently shadows the first) and only `save_recipe` actually calls into
-     `shared.auth_middleware`; `create_recipe`/`update_recipe`/`rate_recipe` still use
-     the local `token_auth.get_current_user`. Both now behave correctly, so this is a
-     duplication/maintenance smell rather than a live bug — but the two could drift
-     again.
-   - fix `backend/recipes/tests/test_recipes_routes.py`'s collection failure (see bug
-     #2 below) — the PR's own description calls this pre-existing and explicitly out
-     of scope.
-   - This session's `backend/mealplan/generate.py` (issue #2) was switched to
-     `shared.auth_middleware.require_auth` directly rather than copying
-     `token_auth.py` a second time — unaffected by either version of this bug.
-2. **`backend/recipes/tests/test_recipes_routes.py` doesn't collect.** Loads
-   `backend/recipes/app.py` via `importlib.util.spec_from_file_location`, which executes
-   `from token_auth import ...` — but nothing puts `backend/recipes/` itself on
-   `sys.path` for local test runs (it works when deployed, since SAM's `CodeUri` makes a
-   Lambda's own directory its import root). `backend/conftest.py` (added in PR #27)
-   fixes the parallel issue for `shared.*` imports but doesn't address this. Pre-existing,
-   confirmed still unfixed after PR #29 (that PR explicitly called it out-of-scope) —
-   recipes' own test infra needs either a `sys.path` shim like
-   `backend/mealplan/tests/test_generate.py`'s (scoped/cleaned up immediately, see next
-   item for why that matters) or a proper package layout.
-   - **One more issue waiting behind this one, confirmed by direct check:**
-     `backend/recipes/app.py:30` does `import s3_utils`, but the file on disk is
-     `backend/recipes/s3utils.py` (no underscore) — a real name mismatch that will
-     throw once the `token_auth` sys.path problem above is fixed, not before.
-3. **(Fixed this session) `backend/mealplan/test_claude_call.py` → renamed to
-   `manual_claude_smoke_check.py`.** It matched pytest's default `test_*.py` collection
-   glob despite being a manual, non-automated script (see its own docstring), which put
-   `backend/mealplan` on `sys.path` for the rest of any `pytest backend` session. That
-   was harmless on its own, but as soon as `backend/mealplan/token_auth.py` was added
-   (this session, same name as recipes' module), it caused recipes' `app.py` to
-   accidentally import mealplan's `token_auth` instead of its own — a same-name-module
-   collision. Renamed to avoid *both* of pytest's default globs (`test_*.py` and
-   `*_test.py`) — a name ending in `_test.py` still gets collected.
+All of the Week 2–era known bugs in earlier versions of this doc are fixed: the auth
+role-casing bug (#28), the two-parallel-auth-implementations smell (`token_auth.py` is
+gone), the `s3utils.py`/`s3_utils.py` name mismatch, and `backend/recipes/tests/`
+failing to collect. `pytest backend -v` collects and passes cleanly now (75 tests as of
+this write-up) — no more need to exclude `backend/recipes` from a full test run.
+
+Nothing is tracked here as a live known bug as of this write-up. Check
+`gh issue list --state open` for what's actually still open — mostly Week 4 hardening
+tasks (demo rehearsal, docs, AWS cost cleanup), not correctness bugs.
 
 ### Running the tests
 
@@ -154,37 +103,24 @@ responsible for a track. See `README.md` for the full architecture and
                 -r backend/mealplan/requirements.txt
     pytest backend -v
 
-`backend/conftest.py` puts the shared layer on `sys.path` automatically now. `pytest
-backend -v` as a whole still fails on collecting `backend/recipes/tests/` (Known bug #2
-above) — run `pytest backend/auth backend/layer backend/mealplan -v` to exercise
-everything that currently passes (23 tests as of this write-up). Recipes' DB-dependent
-routes are still smoke-tested manually against a deployed stack, not by the automated
-suite, per the original Week 1 decision.
+`backend/conftest.py` puts the shared layer on `sys.path` automatically. The full suite
+collects and passes now — no exclusions needed. Recipes' DB-dependent routes are still
+smoke-tested manually against the deployed stack in addition to the unit suite, per the
+original Week 1 decision.
 
 ## Where things live
 
-See `README.md`'s "Repo layout" section. One addition since Week 1: a repo-specific
-Claude Code subagent for the auth track lives at `.claude/agents/auth-agent.md`, used to
-implement issue #7 (see `docs/superpowers/plans/2026-08-16-auth-agent-subagent.md`).
+See `README.md`'s "Repo layout" section (note: it says `/backend/shared`, but the real
+path is `/backend/layer/shared`, per SAM's Lambda-layer convention — fixed as part of
+this doc sweep). A repo-specific Claude Code subagent for the auth track lives at
+`.claude/agents/auth-agent.md`, used to implement issue #7 (see
+`docs/superpowers/plans/2026-08-16-auth-agent-subagent.md`).
 
-## What's NOT done yet
+## What's left
 
-- Deployed now (`recipe-sharing-app`, `us-east-2`), but only mealplan's `/mealplan/generate`
-  path has been curl-verified live; `/auth/login` was exercised as a dependency of that
-  test but recipes/other routes haven't been.
-- Frontend is scaffolding only; no real UI behind any `.jsx` file except `App.jsx`.
-- #28 is fixed, but recipes still has two parallel auth implementations
-  (`token_auth.py` and `shared.auth_middleware`) — only `save_recipe` uses the shared
-  one; migrating the rest and dropping `token_auth.py` is still open work, just no
-  longer a correctness bug.
-- `backend/recipes/tests/test_recipes_routes.py` doesn't collect locally — and once
-  that's fixed, a `s3_utils` vs `s3utils.py` import-name mismatch in `app.py` is next
-  in line.
-- Issue #8 (moderator permissions), #9 (dietary tags), #12/#13 (frontend UI) open.
-- Mealplan: issue #2 is done and deployed. Still open: dietary-tag-aware prompting
-  (#1, blocked on #9) and DLQ wiring (#3, unblocked now that #2 is live).
-- CloudWatch alarms have real thresholds now (#11 Task 1) but no observed state
-  transition and no `AlarmTopic` subscription — both unblocked now that the stack is
-  live, still not done.
-- Nothing in this session's mealplan or infra work is committed yet (deliberately —
-  commits are the repo owner's to run).
+As of 2026-09-01, only Week 4 hardening/demo-prep issues remain open — no known
+functional gaps in any of the four tracks. Open issues are demo rehearsal (#63, blocked
+on #67 which is now done), docs (#65, this sweep — in progress), AWS cost/resource
+cleanup (#74), and manual demo-readiness checks (#68, #72, #73, #75). See the GitHub
+Project board (`docs/BOARD_SETUP.md`) for the current, authoritative list rather than
+trusting this doc's issue numbers to stay accurate.

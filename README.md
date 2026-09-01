@@ -18,7 +18,7 @@ Cloud platform course project — AWS-based recipe sharing platform with an AI-p
   /recipes        # CRUD, ratings, saved recipes (Person A)
   /auth            # registration, login, JWT, role enforcement (Person B)
   /mealplan        # SQS consumer, Claude API integration (you)
-  /shared          # shared utils, DB models, common Lambda layer code
+  /layer/shared    # shared utils, DB models, common Lambda layer code
 /infra             # IaC — CloudFormation/SAM/Terraform, RDS provisioning, alerts (Person C)
 /frontend          # UI (Person D)
 /docs              # architecture diagram, proposal doc, ADRs
@@ -35,10 +35,10 @@ Cloud platform course project — AWS-based recipe sharing platform with an AI-p
 
 ## Branching
 
-- `main` — always deployable
+- `master` — always deployable
 - `feature/<person>-<short-desc>` — e.g. `feature/mealplan-sqs-consumer`
-- Open a PR into `main`, at least one teammate review before merge
-- No direct pushes to `main`
+- Open a PR into `master`, at least one teammate review before merge
+- No direct pushes to `master`
 
 ## Board
 

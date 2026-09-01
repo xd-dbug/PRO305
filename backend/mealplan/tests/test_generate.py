@@ -142,6 +142,41 @@ def test_generate_rejects_non_positive_days(mock_get_user, mock_get_conn, mock_b
     mock_get_conn.assert_not_called()
 
 
+@patch.dict("os.environ", {"MEALPLAN_QUEUE_URL": "https://sqs.fake/mealplan-queue"})
+@patch("mealplan_generate.boto3")
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_generate_stores_force_failure_flag(mock_get_user, mock_get_conn, mock_boto3):
+    mock_get_user.return_value = {"sub": "42", "email": "user@example.com", "role": "user"}
+    conn, cursor = _mock_conn()
+    mock_get_conn.return_value = conn
+    mock_boto3.client.return_value = MagicMock()
+
+    body = {"preferences": {"days": 1, "mealsPerDay": 1, "forceFailure": True}}
+    result = generate_module.lambda_handler(make_event(body), FakeContext())
+
+    assert result["statusCode"] == 202
+    _, insert_params = cursor.execute.call_args[0]
+    assert json.loads(insert_params[2]) == {
+        "days": 1,
+        "mealsPerDay": 1,
+        "forceFailure": True,
+    }
+
+
+@patch("mealplan_generate.boto3")
+@patch("mealplan_generate.get_connection")
+@patch("mealplan_generate.require_auth")
+def test_generate_rejects_non_boolean_force_failure(mock_get_user, mock_get_conn, mock_boto3):
+    mock_get_user.return_value = {"sub": "42", "email": "user@example.com", "role": "user"}
+
+    body = {"preferences": {"days": 1, "mealsPerDay": 1, "forceFailure": "yes"}}
+    result = generate_module.lambda_handler(make_event(body), FakeContext())
+
+    assert result["statusCode"] == 400
+    mock_get_conn.assert_not_called()
+
+
 @patch("mealplan_generate.get_connection")
 @patch("mealplan_generate.require_auth")
 def test_status_returns_complete_job_with_plan(mock_get_user, mock_get_conn):

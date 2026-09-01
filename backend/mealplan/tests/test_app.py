@@ -199,6 +199,40 @@ def test_claude_failure_marks_failed_and_reraises(
 @patch("mealplan_app.get_saved_recipes")
 @patch("mealplan_app.get_dietary_tags")
 @patch("mealplan_app.get_connection")
+def test_force_failure_flag_fails_without_calling_claude(
+    mock_get_conn, mock_get_dietary_tags, mock_get_saved_recipes, mock_anthropic
+):
+    conn, cursor = _mock_conn(
+        {
+            "user_id": 7,
+            "request_preferences": json.dumps(
+                {"days": 1, "mealsPerDay": 1, "forceFailure": True}
+            ),
+        }
+    )
+    mock_get_conn.return_value = conn
+
+    event = _sqs_event([json.dumps({"jobId": "job-force-fail"})])
+    with pytest.raises(RuntimeError, match="forceFailure"):
+        mealplan_app.lambda_handler(event, FakeContext())
+
+    failed_calls = _update_calls(cursor, "status = 'failed'")
+    assert len(failed_calls) == 1
+    _, params = failed_calls[0].args
+    assert params[1] == "job-force-fail"
+
+    mock_get_dietary_tags.assert_not_called()
+    mock_get_saved_recipes.assert_not_called()
+    mock_anthropic.Anthropic.assert_not_called()
+    conn.commit.assert_called_once()
+    conn.close.assert_called_once()
+
+
+@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+@patch("mealplan_app.anthropic")
+@patch("mealplan_app.get_saved_recipes")
+@patch("mealplan_app.get_dietary_tags")
+@patch("mealplan_app.get_connection")
 def test_malformed_claude_json_marks_failed_and_reraises(
     mock_get_conn, mock_get_dietary_tags, mock_get_saved_recipes, mock_anthropic
 ):

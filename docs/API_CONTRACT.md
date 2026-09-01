@@ -65,6 +65,7 @@ Query params: `?page=1&limit=20&tag=vegetarian`
   "totalPages": 5
 }
 ```
+`avgRating` is `null`, not `0`, for a recipe with no ratings yet.
 
 ### GET /recipes/{recipeId}
 ```json
@@ -82,6 +83,7 @@ Query params: `?page=1&limit=20&tag=vegetarian`
   "notes": "string|null"
 }
 ```
+`avgRating` is `null`, not `0`, for a recipe with no ratings yet.
 
 ### POST /recipes  *(auth required)*
 ```json
@@ -126,6 +128,7 @@ pagination as `GET /recipes`.
 // Response 200
 { "recipes": [ { "recipeId": "string", "title": "string", "photoUrl": "string|null", "avgRating": 4.2, "authorId": "string" } ], "page": 1, "totalPages": 1 }
 ```
+`avgRating` is `null`, not `0`, for a recipe with no ratings yet (same as `GET /recipes`).
 
 ---
 
@@ -139,6 +142,9 @@ Enqueues to SQS, returns immediately.
 // Response 202
 { "jobId": "string", "status": "pending" }
 ```
+`preferences.forceFailure` (optional boolean) is a demo/rehearsal-only fault-injection
+flag — see `infra/README.md`'s "Demo: forcing a mealplan failure" section. Not part of
+normal client usage.
 
 ### GET /mealplan/status/{jobId}  *(auth required)*
 Frontend polls this.

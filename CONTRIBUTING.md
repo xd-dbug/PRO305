@@ -3,9 +3,9 @@
 ## Workflow
 
 1. Pick up an issue from the board, assign yourself, move it to "In Progress"
-2. Branch off `main`: `feature/<yourname>-<short-desc>`
+2. Branch off `master`: `feature/<yourname>-<short-desc>`
 3. Commit in small, logical chunks. Reference the issue number: `Add SQS consumer skeleton (#12)`
-4. Open a PR into `main` when ready. Fill in the PR template — link the issue with `Closes #12` so it auto-closes on merge
+4. Open a PR into `master` when ready. Fill in the PR template — link the issue with `Closes #12` so it auto-closes on merge
 5. At least one teammate reviews before merge. Don't self-merge except for trivial docs/config fixes
 6. Delete the branch after merge
 
