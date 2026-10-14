@@ -15,12 +15,12 @@ Cloud platform course project — AWS-based recipe sharing platform with an AI-p
 
 ```
 /backend
-  /recipes        # CRUD, ratings, saved recipes (Person A)
-  /auth            # registration, login, JWT, role enforcement (Person B)
-  /mealplan        # SQS consumer, Claude API integration (you)
+  /recipes        # CRUD, ratings, saved recipes
+  /auth            # registration, login, JWT, role enforcement
+  /mealplan        # SQS consumer, Claude API integration 
   /layer/shared    # shared utils, DB models, common Lambda layer code
-/infra             # IaC — CloudFormation/SAM/Terraform, RDS provisioning, alerts (Person C)
-/frontend          # UI (Person D)
+/infra             # IaC — CloudFormation/SAM/Terraform, RDS provisioning, alerts
+/frontend          # UI
 /docs              # architecture diagram, proposal doc, ADRs
 ```
 
